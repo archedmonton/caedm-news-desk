@@ -76,7 +76,7 @@ export function LiveUpdates({ initialLatestId, initialLastRefreshAt }: { initial
           role="status"
           className={cn(
             "mr-auto inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium text-white shadow-sm",
-            status.newHighPriority ? "bg-p0 hover:bg-p0/90" : "bg-navy-700 hover:bg-navy-800",
+            status.newHighPriority ? "bg-p0 hover:bg-p0/90" : "bg-maroon-700 hover:bg-maroon-800",
           )}
         >
           {status.newStories} new {status.newStories === 1 ? "story" : "stories"}

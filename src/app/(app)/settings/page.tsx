@@ -312,7 +312,7 @@ export default async function SettingsPage() {
                         <td className="px-5 py-2.5">
                           <div className="font-medium text-ink">
                             {u.name || "—"}
-                            {u.isDeveloper ? <Badge className="ml-2 border-gold-500/40 bg-gold-100 text-gold-500">Developer</Badge> : null}
+                            {u.isDeveloper ? <Badge className="ml-2 border-gold-300 bg-gold-100 text-gold-800">Developer</Badge> : null}
                           </div>
                           <div className="text-xs text-muted">{u.email}</div>
                         </td>

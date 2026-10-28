@@ -245,7 +245,7 @@ export function HelpProvider({
       <dialog
         ref={ref}
         aria-labelledby="help-title"
-        className="m-0 ml-auto h-dvh max-h-dvh w-full max-w-md overflow-y-auto bg-surface p-0 text-ink shadow-2xl backdrop:bg-navy-900/40"
+        className="m-0 ml-auto h-dvh max-h-dvh w-full max-w-md overflow-y-auto bg-surface p-0 text-ink shadow-2xl backdrop:bg-maroon-900/40"
         onClick={(e) => {
           if (e.target === ref.current) ref.current?.close();
         }}
@@ -280,7 +280,7 @@ export function HelpProvider({
               <p className="mt-2 font-medium">{developer.name}</p>
               <a
                 href={`mailto:${developer.email}?subject=${encodeURIComponent("CAEDM News Desk support")}`}
-                className="inline-flex items-center gap-1.5 text-navy-700 hover:underline"
+                className="inline-flex items-center gap-1.5 text-cobalt-700 hover:underline"
               >
                 <Mail className="size-4" /> {developer.email}
               </a>
@@ -361,7 +361,7 @@ export function HelpTrigger({
         type="button"
         onClick={() => help.open(view)}
         aria-haspopup="dialog"
-        className={cn("flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-navy-100/80 hover:bg-white/5 hover:text-white", className)}
+        className={cn("flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-muted hover:bg-maroon-50 hover:text-maroon-800", className)}
       >
         <Icon className="size-4" aria-hidden /> <span className="flex-1 text-left">{text}</span>
       </button>

@@ -17,7 +17,7 @@ import { cn, param } from "@/lib/utils";
 export const metadata: Metadata = { title: "Email outbox" };
 
 const STATUS_STYLE: Record<string, string> = {
-  simulated: "border-navy-100 bg-navy-50 text-navy-700",
+  simulated: "border-cobalt-100 bg-cobalt-50 text-cobalt-700",
   sent: "border-emerald-200 bg-emerald-50 text-emerald-800",
   pending: "border-amber-200 bg-amber-50 text-amber-800",
   failed: "border-p0/30 bg-p0-soft text-p0",
@@ -59,7 +59,7 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
         }
       />
       {!mail.live ? (
-        <p role="status" className="mb-4 rounded-lg border border-navy-100 bg-navy-50 px-4 py-3 text-sm text-navy-800">
+        <p role="status" className="mb-4 rounded-lg border border-cobalt-100 bg-cobalt-50 px-4 py-3 text-sm text-cobalt-800">
           <strong>Simulated delivery.</strong> {mail.reason} No real email leaves this system.
         </p>
       ) : null}
@@ -137,7 +137,7 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
             key={k.key}
             href={k.key ? `/outbox?kind=${k.key}` : "/outbox"}
             aria-current={kind === k.key ? "page" : undefined}
-            className={cn("rounded-md px-3 py-1.5 text-muted hover:text-ink", kind === k.key && "bg-navy-700 text-white hover:text-white")}
+            className={cn("rounded-md px-3 py-1.5 text-muted hover:text-ink", kind === k.key && "bg-maroon-700 text-white hover:text-white")}
           >
             {k.label}
           </Link>
@@ -166,7 +166,7 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
                     <td className="whitespace-nowrap px-5 py-2.5 text-muted">{formatDateTime(n.createdAt)}</td>
                     <td className="px-3 py-2.5 capitalize">{n.kind === "test" ? "preview" : n.kind.replace("_", " ")}</td>
                     <td className="px-3 py-2.5">
-                      <Link href={`/outbox/${n.id}`} className="font-medium text-ink hover:text-navy-700 hover:underline">
+                      <Link href={`/outbox/${n.id}`} className="font-medium text-ink hover:text-cobalt-700 hover:underline">
                         {n.subject}
                       </Link>
                       <div className="text-xs text-subtle">to {n.recipient}</div>

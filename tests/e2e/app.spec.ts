@@ -6,7 +6,7 @@ test.describe.configure({ mode: "serial" });
 test("unauthenticated visitors are redirected to sign-in", async ({ page }) => {
   await page.goto("/news");
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByRole("heading", { name: "CAEDM News Desk" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "News Desk" })).toBeVisible();
 });
 
 test("overview shows monitoring summary", async ({ page }) => {

@@ -93,7 +93,7 @@ export default async function NewsPage({ searchParams }: { searchParams: SP }) {
             <Input id="to" type="date" name="to" defaultValue={f.to} />
           </div>
           <label className="flex items-center gap-2 text-sm text-muted">
-            <input type="checkbox" name="review" value="1" defaultChecked={f.review === "1"} className="size-4 accent-navy-700" />
+            <input type="checkbox" name="review" value="1" defaultChecked={f.review === "1"} className="size-4 accent-maroon-700" />
             Needs review only
           </label>
           <div className="flex gap-2 lg:col-span-3 lg:justify-end">

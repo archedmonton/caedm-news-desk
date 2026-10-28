@@ -23,12 +23,12 @@ export const COLORS = {
   ink: "#1f2937",
   muted: "#6b7280",
   border: "#e5e7eb",
-  accent: "#1e3a5f",
-  gold: "#a1782f",
-  bg: "#f6f5f2",
-  P0: "#b91c1c",
+  accent: "#860038",
+  gold: "#e5c047",
+  bg: "#f8f6f4",
+  P0: "#bf311a",
   P1: "#b45309",
-  P2: "#1d4ed8",
+  P2: "#005493",
   P3: "#6b7280",
 } as const;
 
@@ -50,7 +50,7 @@ export function emailLayout(opts: { title: string; preheader: string; body: stri
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${COLORS.bg}"><tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#ffffff;border:1px solid ${COLORS.border};border-radius:10px">
 <tr><td style="padding:22px 28px;border-bottom:3px solid ${COLORS.gold};background:${COLORS.accent};border-radius:10px 10px 0 0">
-<div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#cbd5e1">Catholic Archdiocese of Edmonton · Communications</div>
+<div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#f5dbe5">Catholic Archdiocese of Edmonton · Communications</div>
 <div style="font-size:20px;font-weight:700;color:#ffffff;margin-top:4px">${esc(opts.title)}</div>
 </td></tr>
 <tr><td style="padding:8px 28px 24px 28px">${opts.body}</td></tr>

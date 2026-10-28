@@ -65,7 +65,9 @@ Read `docs/ARCHITECTURE.md` first, and keep `docs/PROGRESS.md` current.
 ## Conventions
 
 - UI primitives in `src/components/ui/primitives.tsx` follow the shadcn/ui pattern. Use the theme tokens in
-  `globals.css` (navy/gold, plus priority colours `p0`–`p3`).
+  `globals.css`: CAEDM brand `maroon` (#860038, primary), `gold` (#E5C047, accent; use `gold-800` for text),
+  `cobalt` (#005493, links and info), plus priority colours `p0`–`p3` (`p0` is the brand red #BF311A). The logo
+  is `public/caedm-logo.png`, and the favicon is `src/app/icon.png` (the crest).
 - Forms that need inline results use `ActionForm`, and its actions return `ActionState`. Simple buttons use
   plain `<form action>`.
 - Keep comment density low; explain *why*, not *what*.

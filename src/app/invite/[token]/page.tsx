@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { acceptInviteAction } from "@/actions/auth";
 import { ActionForm, SubmitButton } from "@/components/forms";
@@ -14,15 +15,17 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
   const { token } = await params;
   const invite = productionAccess().enabled ? await findInvitation(token) : null;
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-navy-900 px-4 py-12">
+    <div className="relative flex min-h-dvh items-center justify-center bg-paper px-4 py-12">
+      <div aria-hidden className="brand-stripe absolute inset-x-0 top-0 h-1.5" />
       <div className="w-full max-w-sm">
-        <h1 className="mb-6 text-center font-serif text-2xl font-semibold text-white">Join CAEDM News Desk</h1>
+        <Image src="/caedm-logo.png" alt="The Catholic Archdiocese of Edmonton" width={310} height={144} priority className="mx-auto h-auto w-[200px]" />
+        <h1 className="mb-6 mt-4 text-center font-serif text-2xl font-semibold text-maroon-700">Join the News Desk</h1>
         <Card className="p-6">
           {!invite ? (
             <div className="space-y-3 text-sm">
               <p className="font-medium text-ink">This invitation link is invalid, expired or already used.</p>
               <p className="text-muted">Ask a News Desk administrator to send a new invitation.</p>
-              <Link href="/login" className="text-navy-700 underline">
+              <Link href="/login" className="text-cobalt-700 underline">
                 Go to sign-in
               </Link>
             </div>

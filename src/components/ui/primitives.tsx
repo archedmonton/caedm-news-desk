@@ -10,11 +10,11 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-navy-700 text-white hover:bg-navy-800",
+        default: "bg-maroon-700 text-white hover:bg-maroon-800",
         outline: "border border-line bg-surface text-ink hover:bg-paper",
         ghost: "text-muted hover:bg-paper hover:text-ink",
         destructive: "bg-p0 text-white hover:bg-p0/90",
-        link: "text-navy-700 underline-offset-4 hover:underline px-0",
+        link: "text-cobalt-700 underline-offset-4 hover:underline px-0",
       },
       size: {
         default: "h-9 px-3.5",
@@ -69,7 +69,7 @@ export function CardBody({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 const fieldBase =
-  "w-full rounded-md border border-line bg-surface px-3 text-sm text-ink placeholder:text-subtle shadow-[inset_0_1px_1px_rgba(0,0,0,0.02)] focus:border-navy-600 focus:outline-none focus:ring-2 focus:ring-navy-100 disabled:opacity-60";
+  "w-full rounded-md border border-line bg-surface px-3 text-sm text-ink placeholder:text-subtle shadow-[inset_0_1px_1px_rgba(0,0,0,0.02)] focus:border-cobalt-700 focus:outline-none focus:ring-2 focus:ring-cobalt-100 disabled:opacity-60";
 
 export function Input({ className, ...props }: React.ComponentProps<"input">) {
   return <input className={cn(fieldBase, "h-9", className)} {...props} />;
@@ -119,5 +119,5 @@ export function Badge({ className, ...props }: React.ComponentProps<"span">) {
 }
 
 export function Checkbox({ className, ...props }: React.ComponentProps<"input">) {
-  return <input type="checkbox" className={cn("size-4 rounded border-line accent-navy-700", className)} {...props} />;
+  return <input type="checkbox" className={cn("size-4 rounded border-line accent-maroon-700", className)} {...props} />;
 }

@@ -117,7 +117,7 @@ export function SourceForm({
               <ul className="mt-1 space-y-1">
                 {feeds.map((f) => (
                   <li key={f.url}>
-                    <button type="button" className="text-left text-navy-700 hover:underline" onClick={() => setFeedUrl(f.url)}>
+                    <button type="button" className="text-left text-cobalt-700 hover:underline" onClick={() => setFeedUrl(f.url)}>
                       {f.title}: <span className="break-all text-xs">{f.url}</span>
                     </button>
                   </li>

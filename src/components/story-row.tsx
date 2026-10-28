@@ -33,7 +33,7 @@ export function StoryRow({ s, actions = true, canReview = false }: { s: StoryLis
         {s.isSample ? <SampleBadge /> : null}
       </div>
       <h3 className="text-[15px] font-semibold leading-snug text-ink">
-        <Link href={`/news/${s.id}`} className="hover:text-navy-700 hover:underline">
+        <Link href={`/news/${s.id}`} className="hover:text-cobalt-700 hover:underline">
           {s.title}
         </Link>
       </h3>

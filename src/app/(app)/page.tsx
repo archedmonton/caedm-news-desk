@@ -21,7 +21,7 @@ function Stat({ label, value, sub, href, tone }: { label: string; value: number 
   return (
     <Link
       href={href}
-      className="group rounded-xl border border-line bg-surface px-4 py-4 transition-colors hover:border-navy-100 hover:bg-navy-50/40"
+      className="group rounded-xl border border-line bg-surface px-4 py-4 transition-colors hover:border-maroon-100 hover:bg-maroon-50/40"
     >
       <div className="text-[13px] text-muted">{label}</div>
       <div
@@ -146,7 +146,7 @@ export default async function OverviewPage() {
               title="High-priority alerts"
               description="P0 and P1 stories that are not yet covered or archived"
               action={
-                <Link href="/news?priority=high&status=open&sort=priority" className="flex items-center gap-1 text-sm text-navy-700 hover:underline">
+                <Link href="/news?priority=high&status=open&sort=priority" className="flex items-center gap-1 text-sm text-cobalt-700 hover:underline">
                   All <ArrowRight className="size-3.5" />
                 </Link>
               }
@@ -168,7 +168,7 @@ export default async function OverviewPage() {
               title="Recent relevant articles"
               description="P0–P2 stories published in the last 72 hours"
               action={
-                <Link href="/news" className="flex items-center gap-1 text-sm text-navy-700 hover:underline">
+                <Link href="/news" className="flex items-center gap-1 text-sm text-cobalt-700 hover:underline">
                   News Feed <ArrowRight className="size-3.5" />
                 </Link>
               }
@@ -210,7 +210,7 @@ export default async function OverviewPage() {
                 <div className="text-muted">Latest alert</div>
                 <div className="text-ink">{o.lastAlert ? `${formatDateTime(o.lastAlert.createdAt)} · ${o.lastAlert.status}` : "None sent"}</div>
               </div>
-              <Link href="/outbox/preview" className="inline-flex items-center gap-1 text-navy-700 hover:underline">
+              <Link href="/outbox/preview" className="inline-flex items-center gap-1 text-cobalt-700 hover:underline">
                 Preview today&apos;s brief <ArrowRight className="size-3.5" />
               </Link>
             </div>

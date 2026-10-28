@@ -67,7 +67,18 @@ are blocked on IT approval, as intended.
    data.
 5. Enable the CAEDM feed, then verify and activate further expansion sources (see `docs/SOURCES.md`).
 
-## Change request 2026-10-28 (2): hosting, 8 AM brief, live updates, admin-managed sources (✅ implemented, NOT committed)
+## Change request 2026-10-28 (3): CAEDM branding (branch `feature/branding`, not yet pushed)
+
+- The CAEDM logo appears in the sidebar, the mobile header, sign-in and invitation pages. The crest is the
+  favicon/app icon.
+- Brand palette in `globals.css`: maroon #860038 (primary buttons, active navigation), gold #E5C047 (accents and
+  dividers), blue #005493 (links, info, P2) and red #BF311A (P0). There is a brand stripe across the top of the
+  sidebar and the sign-in page.
+- The sidebar is now light so the full-colour logo reads correctly. Email templates use the same colours.
+- Middleware no longer redirects the logo or icon files to sign-in.
+- Verified by `npm run check` (85/85), Playwright (20/20), and screenshots of sign-in, overview and news.
+
+## Change request 2026-10-28 (2): hosting, 8 AM brief, live updates, admin-managed sources (✅ committed 2df6919)
 
 | Item | Status | Verified by |
 |---|---|---|

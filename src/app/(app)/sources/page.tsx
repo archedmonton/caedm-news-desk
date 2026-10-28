@@ -70,7 +70,7 @@ export default async function SourcesPage({ searchParams }: { searchParams: Prom
                     href={s.websiteUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-0.5 inline-flex items-center gap-1 text-sm text-navy-700 hover:underline"
+                    className="mt-0.5 inline-flex items-center gap-1 text-sm text-cobalt-700 hover:underline"
                   >
                     {s.websiteUrl} <ExternalLink className="size-3" />
                   </a>

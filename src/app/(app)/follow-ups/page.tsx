@@ -50,7 +50,7 @@ export default async function FollowUpsPage({ searchParams }: { searchParams: Pr
             key={v.key}
             href={v.key ? `/follow-ups?view=${v.key}` : "/follow-ups"}
             aria-current={view === v.key ? "page" : undefined}
-            className={cn("rounded-md px-3 py-1.5 text-muted hover:text-ink", view === v.key && "bg-navy-700 text-white hover:text-white")}
+            className={cn("rounded-md px-3 py-1.5 text-muted hover:text-ink", view === v.key && "bg-maroon-700 text-white hover:text-white")}
           >
             {v.label}
           </Link>
@@ -77,7 +77,7 @@ export default async function FollowUpsPage({ searchParams }: { searchParams: Pr
                       <StatusBadge status={r.reviewStatus} />
                       {overdue ? <span className="rounded-full bg-p0 px-2 py-0.5 text-[11px] font-medium text-white">Overdue</span> : null}
                     </div>
-                    <Link href={`/news/${r.storyId}#follow-up`} className="mt-1.5 block font-semibold text-ink hover:text-navy-700 hover:underline">
+                    <Link href={`/news/${r.storyId}#follow-up`} className="mt-1.5 block font-semibold text-ink hover:text-cobalt-700 hover:underline">
                       {r.title}
                     </Link>
                     <p className="mt-0.5 text-xs text-subtle">

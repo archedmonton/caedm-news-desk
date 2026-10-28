@@ -17,7 +17,7 @@ export function AccessRequestsCard({ rows, title = "Access requests" }: { rows: 
       <CardHeader
         title={
           <span className="inline-flex items-center gap-2">
-            <UserPlus className="size-4 text-gold-500" /> {title}
+            <UserPlus className="size-4 text-gold-800" /> {title}
           </span>
         }
         description={pending.length ? `${pending.length} waiting for an administrator` : "No pending requests"}

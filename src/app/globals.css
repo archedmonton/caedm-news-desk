@@ -1,31 +1,41 @@
 @import "tailwindcss";
 
+/* CAEDM brand: maroon #860038 (primary), gold #E5C047 (accent), blue #005493 (links/info), red #BF311A (urgent). */
 @theme {
   --font-sans: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
   --font-serif: Georgia, "Times New Roman", serif;
 
-  --color-paper: #f7f6f3;
+  --color-paper: #f8f6f4;
   --color-surface: #ffffff;
-  --color-line: #e7e5e0;
-  --color-ink: #1c1917;
-  --color-muted: #625d57;
-  --color-subtle: #8a847d;
+  --color-line: #e8e3e1;
+  --color-ink: #1f1a1c;
+  --color-muted: #625a5d;
+  --color-subtle: #8a8184;
 
-  --color-navy-50: #eef3f9;
-  --color-navy-100: #d9e3f0;
-  --color-navy-600: #2c4d78;
-  --color-navy-700: #1e3a5f;
-  --color-navy-800: #172e4b;
-  --color-navy-900: #0f1f33;
-  --color-gold-500: #a1782f;
-  --color-gold-100: #f4ead6;
+  --color-maroon-50: #fcf1f5;
+  --color-maroon-100: #f5dbe5;
+  --color-maroon-200: #ebb6ca;
+  --color-maroon-700: #860038;
+  --color-maroon-800: #6c002d;
+  --color-maroon-900: #4d0020;
 
-  --color-p0: #b42318;
-  --color-p0-soft: #fef3f2;
+  --color-gold-100: #fbf3d6;
+  --color-gold-300: #efd780;
+  --color-gold-500: #e5c047;
+  /* Darker gold for text on light backgrounds; #E5C047 itself fails contrast on white. */
+  --color-gold-800: #6e5400;
+
+  --color-cobalt-50: #eaf3fb;
+  --color-cobalt-100: #cfe2f3;
+  --color-cobalt-700: #005493;
+  --color-cobalt-800: #00457a;
+
+  --color-p0: #bf311a;
+  --color-p0-soft: #fdf1ee;
   --color-p1: #b54708;
   --color-p1-soft: #fffaeb;
-  --color-p2: #175cd3;
-  --color-p2-soft: #eff8ff;
+  --color-p2: #005493;
+  --color-p2-soft: #eaf3fb;
   --color-p3: #5d6b7e;
   --color-p3-soft: #f2f4f7;
 }
@@ -42,6 +52,16 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-navy-600);
+  outline: 2px solid var(--color-cobalt-700);
   outline-offset: 2px;
+}
+
+.brand-stripe {
+  background: linear-gradient(
+    90deg,
+    var(--color-maroon-700) 0 55%,
+    var(--color-gold-500) 55% 75%,
+    var(--color-cobalt-700) 75% 90%,
+    var(--color-p0) 90% 100%
+  );
 }

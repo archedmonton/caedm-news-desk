@@ -318,7 +318,7 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
               ))}
               {d.sentIn.length ? (
                 d.sentIn.map((n) => (
-                  <Link key={n.id} href={`/outbox/${n.id}`} className="block text-navy-700 hover:underline">
+                  <Link key={n.id} href={`/outbox/${n.id}`} className="block text-cobalt-700 hover:underline">
                     {n.kind === "digest" ? "Included in brief" : "Alert"}: {formatDateTime(n.createdAt)} ({n.status})
                   </Link>
                 ))

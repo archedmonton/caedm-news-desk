@@ -18,7 +18,7 @@ export const metadata: Metadata = { title: "My account" };
 function Radio({ name, value, checked, label, hint }: { name: string; value: string; checked: boolean; label: string; hint?: string }) {
   return (
     <label className="flex items-start gap-2.5 rounded-md px-2 py-1.5 text-sm hover:bg-paper">
-      <input type="radio" name={name} value={value} defaultChecked={checked} className="mt-0.5 size-4 accent-navy-700" />
+      <input type="radio" name={name} value={value} defaultChecked={checked} className="mt-0.5 size-4 accent-maroon-700" />
       <span>
         <span className="text-ink">{label}</span>
         {hint ? <span className="block text-xs text-muted">{hint}</span> : null}
@@ -59,7 +59,7 @@ export default async function AccountPage() {
               />
               <div className="space-y-5 px-5 py-4">
                 {!mail.live ? (
-                  <p className="rounded-md border border-navy-100 bg-navy-50 px-3 py-2 text-xs text-navy-800">
+                  <p className="rounded-md border border-cobalt-100 bg-cobalt-50 px-3 py-2 text-xs text-cobalt-800">
                     Email delivery is currently simulated. Your choices are saved and will apply as soon as IT enables live email.
                   </p>
                 ) : null}

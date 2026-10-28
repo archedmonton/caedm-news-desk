@@ -13,5 +13,5 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   // API routes authenticate themselves (session, or CRON_SECRET for the scheduler).
-  matcher: ["/((?!login|invite|api/|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!login|invite|api/|_next/static|_next/image|icon.png|caedm-logo.png).*)"],
 };

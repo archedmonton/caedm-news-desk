@@ -20,7 +20,7 @@ export function PriorityBadge({ priority, overridden, compact }: { priority: str
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  new: "border-navy-100 bg-navy-50 text-navy-700",
+  new: "border-cobalt-100 bg-cobalt-50 text-cobalt-700",
   reviewing: "border-amber-200 bg-amber-50 text-amber-800",
   assigned: "border-violet-200 bg-violet-50 text-violet-800",
   covered: "border-emerald-200 bg-emerald-50 text-emerald-800",
@@ -68,7 +68,7 @@ const HEALTH_STYLES = {
   healthy: "border-emerald-200 bg-emerald-50 text-emerald-800",
   degraded: "border-amber-200 bg-amber-50 text-amber-800",
   failing: "border-p0/30 bg-p0-soft text-p0",
-  pending: "border-navy-100 bg-navy-50 text-navy-700",
+  pending: "border-cobalt-100 bg-cobalt-50 text-cobalt-700",
   disabled: "border-line bg-paper text-muted",
   unverified: "border-dashed border-line bg-paper text-subtle",
   manual: "border-line bg-paper text-muted",

@@ -1,6 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { ShieldAlert, UserPlus } from "lucide-react";
 import type { Metadata } from "next";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { devLoginAction, loginAction } from "@/actions/auth";
 import { requestAccessAction } from "@/actions/requests";
@@ -33,15 +34,23 @@ export default async function LoginPage() {
 
   return (
     <HelpProvider developer={developerContact()} signedIn={false} context="login">
-      <div className="min-h-dvh bg-navy-900 px-4 py-8">
+      <div className="relative min-h-dvh bg-paper px-4 py-8">
+        <div aria-hidden className="brand-stripe absolute inset-x-0 top-0 h-1.5" />
         <div className="mx-auto flex max-w-sm justify-end">
-          <HelpTrigger variant="ghost" className="text-navy-100 hover:bg-white/10 hover:text-white" />
+          <HelpTrigger variant="ghost" />
         </div>
-        <div className="mx-auto mt-6 w-full max-w-sm">
+        <div className="mx-auto mt-2 w-full max-w-sm">
           <div className="mb-6 text-center">
-            <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-gold-500">Catholic Archdiocese of Edmonton</div>
-            <h1 className="mt-1 font-serif text-2xl font-semibold text-white">CAEDM News Desk</h1>
-            <p className="mt-1 text-sm text-navy-100/70">Communications monitoring · staff access only</p>
+            <Image
+              src="/caedm-logo.png"
+              alt="The Catholic Archdiocese of Edmonton"
+              width={310}
+              height={144}
+              priority
+              className="mx-auto h-auto w-[220px]"
+            />
+            <h1 className="mx-auto mt-5 w-fit border-t-2 border-gold-500 px-6 pt-3 font-serif text-2xl font-semibold text-maroon-700">News Desk</h1>
+            <p className="mt-1 text-sm text-muted">Communications monitoring · staff access only</p>
           </div>
           <Card className="p-6">
             {!access.enabled ? (
@@ -81,7 +90,7 @@ export default async function LoginPage() {
           <Card className="mt-4 p-0">
             <details className="group">
               <summary className="flex cursor-pointer list-none items-center gap-2 px-6 py-4 text-sm font-medium text-ink">
-                <UserPlus className="size-4 text-navy-700" /> Don&apos;t have an account? Request access
+                <UserPlus className="size-4 text-maroon-700" /> Don&apos;t have an account? Request access
               </summary>
               <div className="border-t border-line px-6 py-5">
                 <p className="mb-4 text-xs text-muted">

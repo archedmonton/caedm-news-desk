@@ -5,9 +5,13 @@ Guidance for AI assistants working in this repository.
 ## Project
 
 CAEDM News Desk is an internal news-monitoring dashboard for the Catholic Archdiocese of Edmonton's
-Communications team. It is built with Next.js 15 (App Router, server components and server actions), SQLite
-via Drizzle, and a separate Node worker. Read `docs/ARCHITECTURE.md` first, and keep `docs/PROGRESS.md`
-current.
+Communications team.
+- Next.js 15 (App Router) on **Vercel**.
+- **Postgres via Drizzle**: Supabase in production, embedded PGlite for local dev and tests.
+- **No always-on worker:** Vercel Cron (≈ 8 AM Edmonton) plus live refresh while staff are signed in both
+  call `runTick`.
+
+Read `docs/ARCHITECTURE.md` first, and keep `docs/PROGRESS.md` current.
 
 ## Commands
 
@@ -15,7 +19,9 @@ current.
 - `npm run test:e2e`: Playwright, using an isolated `data/e2e.db` on port 3210 (port 3100 is used by
   another local project).
 - `npm run build`: production build.
-- `npm run db:generate`: run after editing `src/lib/db/schema.ts`. Commit the generated `drizzle/` SQL.
+- `npm run db:generate`: run after editing `src/lib/db/schema.ts`. Review the SQL; never let it rebuild
+  referenced tables. Commit `drizzle/`.
+- The local PGlite database is single-process: stop `npm run dev` before running CLI scripts.
 - `npm run collect` and `npm run worker` make **real HTTP requests** to the publishers. Use them sparingly.
 
 ## Hard rules
@@ -37,8 +43,10 @@ current.
 - Roles are `admin > manager > member > viewer`. Check permissions with `can()` from
   `src/lib/auth/permissions.ts`, never by comparing role names. The developer account (`is_developer`) is
   protected.
-- Never let drizzle-kit rebuild a table that other tables reference. Hand-write additive migrations instead
-  (see `drizzle/0001_*.sql`).
+- All DB access is async. Inside `db.transaction(async (tx) => …)` use only `tx`: using `db` deadlocks on
+  PGlite and escapes the transaction on Postgres.
+- Never let drizzle-kit rebuild a table that other tables reference; hand-write additive migrations.
+- Refreshes go through `runTick` (lease-protected). Don't add another scheduler path.
 - Store timestamps as UTC milliseconds. Use the helpers in `src/lib/time.ts` for anything Edmonton-local,
   and never hardcode UTC offsets.
 - Scheduled jobs must stay idempotent through unique `notifications.dedupe_key` values.

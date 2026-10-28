@@ -7,7 +7,7 @@ import { ROLES } from "@/lib/db/schema";
 import type { listAccessRequests } from "@/lib/requests";
 import { formatDateTime } from "@/lib/time";
 
-type Rows = ReturnType<typeof listAccessRequests>;
+type Rows = Awaited<ReturnType<typeof listAccessRequests>>;
 
 /** Pending "request access" submissions, shown to administrators. Approval sends a normal invitation. */
 export function AccessRequestsCard({ rows, title = "Access requests" }: { rows: Rows; title?: string }) {

@@ -163,3 +163,10 @@ approvals, social publishing integrations, and AI Communications Hub integration
 5. Contextual help on the login screen and the dashboard, naming the developer (Ruban Peppin,
    ruban.peppin@caedm.ca) for help and support.
 6. A Request a feature form that emails the request to the developer.
+
+## Change request: 2026-10-28 (2)
+
+1. Hosting on Vercel (non-profit, in-house use confirmed by the Vercel rep) with Supabase Postgres.
+2. Email notifications every day around 8 AM (Edmonton).
+3. Real-time updates in the dashboard while users are signed in.
+4. The Communications administrator adds and edits news sources in the app.

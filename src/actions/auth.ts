@@ -9,7 +9,7 @@ import { devLoginAllowed, isAllowedEmail, productionAccess } from "@/lib/auth/ac
 import { env } from "@/lib/env";
 import { createSession, destroySession, getCurrentUser } from "@/lib/auth/session";
 import { acceptInvitation, authenticate } from "@/lib/auth/users";
-import { getDb } from "@/lib/db/client";
+import { first, getDb } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
 
 export async function loginAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
@@ -33,17 +33,17 @@ export async function devLoginAction(fd: FormData) {
   // Enforced server-side: unavailable in production builds regardless of env flags.
   if (!devLoginAllowed()) throw new Error("Development sign-in is disabled.");
   const userId = Number(fd.get("userId"));
-  const user = getDb().select().from(users).where(eq(users.id, userId)).get();
+  const user = await first(getDb().select().from(users).where(eq(users.id, userId)));
   if (!user || user.status !== "active") throw new Error("Unknown user");
   await createSession(user.id);
-  audit("auth.dev_login", "user", user.id, user.id);
+  await audit("auth.dev_login", "user", user.id, user.id);
   redirect("/");
 }
 
 export async function logoutAction() {
   const user = await getCurrentUser();
   await destroySession();
-  if (user) audit("auth.logout", "user", user.id, user.id);
+  if (user) await audit("auth.logout", "user", user.id, user.id);
   redirect("/login");
 }
 

@@ -1,5 +1,5 @@
 import { and, eq, gte, inArray, isNull, ne, notInArray, or, sql } from "drizzle-orm";
-import { getDb, type DB } from "../db/client";
+import { first, getDb, type DB } from "../db/client";
 import { notifications, notificationStories, sources, stories } from "../db/schema";
 import { env } from "../env";
 import { getSettings } from "../settings";
@@ -25,11 +25,11 @@ export type AlertEvaluation = {
 };
 
 /** Which stories would be alerted right now, and why others are held. Pure read. */
-export function evaluateAlerts(db: DB = getDb(), now = Date.now()): AlertEvaluation {
-  const s = getSettings(db);
+export async function evaluateAlerts(db: DB = getDb(), now = Date.now()): Promise<AlertEvaluation> {
+  const s = await getSettings(db);
   const allowed = s.alertMinPriority === "P0" ? (["P0"] as const) : (["P0", "P1"] as const);
   const alerted = db.select({ id: notificationStories.storyId }).from(notificationStories).where(eq(notificationStories.kind, "alert"));
-  const rows = db
+  const rows = await db
     .select({ s: stories, publisher: sources.name })
     .from(stories)
     .innerJoin(sources, eq(sources.id, stories.sourceId))
@@ -49,8 +49,7 @@ export function evaluateAlerts(db: DB = getDb(), now = Date.now()): AlertEvaluat
         ),
       ),
     )
-    .orderBy(stories.priority, sql`${stories.firstDetectedAt} desc`)
-    .all();
+    .orderBy(stories.priority, sql`${stories.firstDetectedAt} desc`);
 
   const candidates: AlertCandidate[] = rows.map(({ s: r, publisher }) => ({
     id: r.id,
@@ -66,14 +65,21 @@ export function evaluateAlerts(db: DB = getDb(), now = Date.now()): AlertEvaluat
     priorityReason: r.priorityReason,
   }));
 
-  const countSince = (since: number) =>
-    db
-      .select({ n: sql<number>`count(*)` })
-      .from(notifications)
-      .where(and(eq(notifications.kind, "alert"), inArray(notifications.status, ["sent", "simulated", "pending", "failed"]), gte(notifications.createdAt, since)))
-      .get()!.n;
-  const sentLastHour = countSince(now - 3600_000);
-  const sentLastDay = countSince(now - 24 * 3600_000);
+  const countSince = async (since: number) =>
+    (await first(
+      db
+        .select({ n: sql<number>`count(*)`.mapWith(Number) })
+        .from(notifications)
+        .where(
+          and(
+            eq(notifications.kind, "alert"),
+            inArray(notifications.status, ["sent", "simulated", "pending", "failed"]),
+            gte(notifications.createdAt, since),
+          ),
+        ),
+    ))!.n;
+  const sentLastHour = await countSince(now - 3600_000);
+  const sentLastDay = await countSince(now - 24 * 3600_000);
   const inWindow = isWithinLocalWindow(now, s.alertWindowStart, s.alertWindowEnd);
 
   const eligible: AlertCandidate[] = [];
@@ -100,57 +106,65 @@ export type AlertRunResult =
  * (notification_stories), and a deterministic dedupe key prevents duplicate sends after restarts.
  */
 export async function processAlerts(db: DB = getDb(), now = Date.now()): Promise<AlertRunResult> {
-  const ev = evaluateAlerts(db, now);
+  const ev = await evaluateAlerts(db, now);
   if (!ev.enabled) return { status: "disabled" };
   if (!ev.eligible.length) return { status: "none" };
-  const s = getSettings(db);
+  const s = await getSettings(db);
   const batch = ev.eligible.slice(0, MAX_STORIES_PER_ALERT);
   const ids = batch.map((b) => b.id).sort((a, b) => a - b);
-  const recipient = alertRecipients(db, s.alertRecipient, batch.some((b) => b.priority === "P0"));
+  const recipient = await alertRecipients(
+    db,
+    s.alertRecipient,
+    batch.some((b) => b.priority === "P0"),
+  );
 
   if (ev.blockedReason) {
     // Flood control: record the skip so the history explains it; the stories remain in the dashboard/digest.
-    db.transaction((tx) => {
-      const row = tx
-        .insert(notifications)
-        .values({
-          kind: "alert",
-          dedupeKey: `alert-skipped:${ids.join(",")}`,
-          recipient,
-          subject: `Alert suppressed: ${batch.length} high-priority ${batch.length === 1 ? "story" : "stories"}`,
-          status: "skipped",
-          lastError: `${ev.blockedReason}. Stories will appear in the next morning brief.`,
-          meta: { storyIds: ids },
-          createdAt: now,
-        })
-        .onConflictDoNothing()
-        .returning({ id: notifications.id })
-        .get();
-      if (row) for (const id of ids) tx.insert(notificationStories).values({ notificationId: row.id, storyId: id, kind: "alert" }).onConflictDoNothing().run();
+    await db.transaction(async (tx) => {
+      const row = (
+        await tx
+          .insert(notifications)
+          .values({
+            kind: "alert",
+            dedupeKey: `alert-skipped:${ids.join(",")}`,
+            recipient,
+            subject: `Alert suppressed: ${batch.length} high-priority ${batch.length === 1 ? "story" : "stories"}`,
+            status: "skipped",
+            lastError: `${ev.blockedReason}. Stories will appear in the next morning brief.`,
+            meta: { storyIds: ids },
+            createdAt: now,
+          })
+          .onConflictDoNothing()
+          .returning({ id: notifications.id })
+      )[0];
+      if (row)
+        for (const id of ids)
+          await tx.insert(notificationStories).values({ notificationId: row.id, storyId: id, kind: "alert" }).onConflictDoNothing();
     });
     return { status: "rate_limited", skippedStoryIds: ids, reason: ev.blockedReason };
   }
 
   const rendered = renderAlert({ now, stories: batch, appUrl: env().APP_URL });
-  const id = db.transaction((tx) => {
-    const row = tx
-      .insert(notifications)
-      .values({
-        kind: "alert",
-        dedupeKey: `alert:${ids.join(",")}`,
-        recipient,
-        subject: rendered.subject,
-        html: rendered.html,
-        text: rendered.text,
-        status: "pending",
-        meta: { storyIds: ids, sensitive: batch.some((b) => b.sensitive) },
-        createdAt: now,
-      })
-      .onConflictDoNothing()
-      .returning({ id: notifications.id })
-      .get();
+  const id = await db.transaction(async (tx) => {
+    const row = (
+      await tx
+        .insert(notifications)
+        .values({
+          kind: "alert",
+          dedupeKey: `alert:${ids.join(",")}`,
+          recipient,
+          subject: rendered.subject,
+          html: rendered.html,
+          text: rendered.text,
+          status: "pending",
+          meta: { storyIds: ids, sensitive: batch.some((b) => b.sensitive) },
+          createdAt: now,
+        })
+        .onConflictDoNothing()
+        .returning({ id: notifications.id })
+    )[0];
     if (!row) return null;
-    for (const storyId of ids) tx.insert(notificationStories).values({ notificationId: row.id, storyId, kind: "alert" }).onConflictDoNothing().run();
+    for (const storyId of ids) await tx.insert(notificationStories).values({ notificationId: row.id, storyId, kind: "alert" }).onConflictDoNothing();
     return row.id;
   });
   if (!id) return { status: "none" };

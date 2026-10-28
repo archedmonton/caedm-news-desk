@@ -1,12 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  edmontonDateKey,
-  edmontonDayRange,
-  isWithinLocalWindow,
-  scheduledInstantForDay,
-  zonedParts,
-  zonedTimeToUtc,
-} from "@/lib/time";
+import { edmontonDateKey, edmontonDayRange, isWithinLocalWindow, scheduledInstantForDay, zonedParts, zonedTimeToUtc } from "@/lib/time";
 
 describe("Edmonton time helpers", () => {
   it("converts 07:30 MDT (summer, UTC-6) to 13:30 UTC", () => {

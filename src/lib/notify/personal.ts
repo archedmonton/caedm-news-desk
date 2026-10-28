@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { getDb, type DB } from "../db/client";
+import { first, getDb, type DB } from "../db/client";
 import { notifications, stories, users } from "../db/schema";
 import { env } from "../env";
 import { deliverNotification } from "./deliver";
@@ -12,10 +12,10 @@ export async function notifyAssignment(
   now = Date.now(),
 ) {
   if (!input.assigneeId || input.assigneeId === input.actorId) return null;
-  const assignee = db.select().from(users).where(eq(users.id, input.assigneeId)).get();
+  const assignee = await first(db.select().from(users).where(eq(users.id, input.assigneeId)));
   if (!assignee || assignee.status !== "active" || !assignee.notifyAssignments) return null;
-  const story = db.select().from(stories).where(eq(stories.id, input.storyId)).get();
-  const actor = db.select().from(users).where(eq(users.id, input.actorId)).get();
+  const story = await first(db.select().from(stories).where(eq(stories.id, input.storyId)));
+  const actor = await first(db.select().from(users).where(eq(users.id, input.actorId)));
   if (!story) return null;
   const rendered = renderAssignment({
     storyTitle: story.title,
@@ -27,19 +27,20 @@ export async function notifyAssignment(
     note: input.note?.trim() || null,
     appUrl: env().APP_URL,
   });
-  const row = db
-    .insert(notifications)
-    .values({
-      kind: "assignment",
-      dedupeKey: `assignment:${input.followUpId}:${assignee.id}:${now}`,
-      recipient: assignee.email,
-      ...rendered,
-      status: "pending",
-      meta: { storyId: story.id, assigneeId: assignee.id },
-      createdAt: now,
-    })
-    .returning({ id: notifications.id })
-    .get();
+  const row = (
+    await db
+      .insert(notifications)
+      .values({
+        kind: "assignment",
+        dedupeKey: `assignment:${input.followUpId}:${assignee.id}:${now}`,
+        recipient: assignee.email,
+        ...rendered,
+        status: "pending",
+        meta: { storyId: story.id, assigneeId: assignee.id },
+        createdAt: now,
+      })
+      .returning({ id: notifications.id })
+  )[0];
   await deliverNotification(row.id, db, now);
   return row.id;
 }

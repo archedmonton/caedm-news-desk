@@ -47,7 +47,7 @@ export async function approveAccessRequestAction(_p: ActionState, fd: FormData):
 
 export async function declineAccessRequestAction(fd: FormData) {
   const user = await requireUser("manage_staff");
-  declineAccessRequest(id.parse(fd.get("requestId")), user.id);
+  await declineAccessRequest(id.parse(fd.get("requestId")), user.id);
   revalidatePath("/", "layout");
 }
 
@@ -55,7 +55,7 @@ export async function updateAccountAction(_p: ActionState, fd: FormData): Promis
   try {
     const user = await requireUser("manage_own_account");
     const on = (k: string) => fd.get(k) === "on";
-    updateOwnAccount(user.id, {
+    await updateOwnAccount(user.id, {
       name: String(fd.get("name") ?? ""),
       notifyDigest: on("notifyDigest"),
       notifyAlerts: z.enum(["all", "p0", "none"]).parse(fd.get("notifyAlerts")),
@@ -97,6 +97,6 @@ export async function submitFeatureRequestAction(_p: ActionState, fd: FormData):
 
 export async function setFeatureRequestStatusAction(fd: FormData) {
   const user = await requireUser("manage_settings");
-  setFeatureRequestStatus(id.parse(fd.get("requestId")), z.enum(FEATURE_REQUEST_STATUSES).parse(fd.get("status")), user.id);
+  await setFeatureRequestStatus(id.parse(fd.get("requestId")), z.enum(FEATURE_REQUEST_STATUSES).parse(fd.get("status")), user.id);
   revalidatePath("/settings");
 }

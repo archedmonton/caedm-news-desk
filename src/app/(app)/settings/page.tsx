@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
-import { inviteStaffAction, reclassifyAction, savePriorityRulesAction, saveSettingsAction, setStaffRoleAction, setStaffStatusAction } from "@/actions/admin";
+import {
+  inviteStaffAction,
+  reclassifyAction,
+  savePriorityRulesAction,
+  saveSettingsAction,
+  setStaffRoleAction,
+  setStaffStatusAction,
+} from "@/actions/admin";
 import { setFeatureRequestStatusAction } from "@/actions/requests";
 import { AccessRequestsCard } from "@/components/access-requests";
 import { ActionForm, SubmitButton } from "@/components/forms";
@@ -23,13 +30,13 @@ export const metadata: Metadata = { title: "Settings" };
 export default async function SettingsPage() {
   const user = await requireUser();
   const admin = can(user.role, "manage_settings");
-  const s = getSettings();
+  const s = await getSettings();
   const mail = liveEmailStatus();
   const access = productionAccess();
-  const staff = admin ? listStaff() : [];
-  const audit = admin ? recentAudit(40) : [];
-  const requests = admin ? listAccessRequests("all") : [];
-  const features = admin ? listFeatureRequests() : [];
+  const staff = admin ? await listStaff() : [];
+  const audit = admin ? await recentAudit(40) : [];
+  const requests = admin ? await listAccessRequests("all") : [];
+  const features = admin ? await listFeatureRequests() : [];
   const developer = developerContact();
   const ro = !admin;
 
@@ -43,7 +50,11 @@ export default async function SettingsPage() {
             <div>
               <div className="text-xs text-subtle">Mode</div>
               <div className="mt-1">
-                {mail.live ? <Badge className="border-emerald-200 bg-emerald-50 text-emerald-800">Live: {mail.transport}</Badge> : <Badge className="border-amber-200 bg-amber-50 text-amber-800">Simulated (outbox only)</Badge>}
+                {mail.live ? (
+                  <Badge className="border-emerald-200 bg-emerald-50 text-emerald-800">Live: {mail.transport}</Badge>
+                ) : (
+                  <Badge className="border-amber-200 bg-amber-50 text-amber-800">Simulated (outbox only)</Badge>
+                )}
               </div>
             </div>
             <div className="sm:col-span-2">
@@ -52,7 +63,13 @@ export default async function SettingsPage() {
             </div>
             <div className="sm:col-span-3">
               <div className="text-xs text-subtle">Production sign-in</div>
-              <div className="mt-1 text-ink">{env().NODE_ENV === "production" ? (access.enabled ? "Enabled" : `Disabled: ${access.reason}`) : "Development mode (production gate not applied)"}</div>
+              <div className="mt-1 text-ink">
+                {env().NODE_ENV === "production"
+                  ? access.enabled
+                    ? "Enabled"
+                    : `Disabled: ${access.reason}`
+                  : "Development mode (production gate not applied)"}
+              </div>
             </div>
           </div>
         </Card>
@@ -62,15 +79,31 @@ export default async function SettingsPage() {
             <CardHeader title="Monitoring" />
             <ActionForm action={saveSettingsAction} className="space-y-4 px-5 py-4">
               <input type="hidden" name="section" value="monitoring" />
-              <Field label="Check frequency (minutes)" htmlFor="checkIntervalMinutes" hint="15–1440. Applies to every source without its own interval.">
-                <Input id="checkIntervalMinutes" name="checkIntervalMinutes" type="number" min={15} max={1440} defaultValue={s.checkIntervalMinutes} disabled={ro} required />
+              <Field
+                label="Refresh sources while staff are signed in (minutes)"
+                htmlFor="checkIntervalMinutes"
+                hint="15–1440. Sources are also refreshed every morning before the brief. Applies to every source without its own interval."
+              >
+                <Input
+                  id="checkIntervalMinutes"
+                  name="checkIntervalMinutes"
+                  type="number"
+                  min={15}
+                  max={1440}
+                  defaultValue={s.checkIntervalMinutes}
+                  disabled={ro}
+                  required
+                />
               </Field>
               {admin ? <SubmitButton size="sm">Save monitoring</SubmitButton> : null}
             </ActionForm>
           </Card>
 
           <Card>
-            <CardHeader title="Daily briefing" description="America/Edmonton time; daylight saving is handled automatically" />
+            <CardHeader
+              title="Daily briefing"
+              description="America/Edmonton time; daylight saving is handled automatically. The scheduled run starts at 8 AM and the brief is sent within that hour."
+            />
             <ActionForm action={saveSettingsAction} className="grid gap-4 px-5 py-4 sm:grid-cols-2">
               <input type="hidden" name="section" value="digest" />
               <label className="flex items-center gap-2 text-sm sm:col-span-2">
@@ -80,7 +113,16 @@ export default async function SettingsPage() {
                 <Input id="digestTime" name="digestTime" type="time" defaultValue={s.digestTime} disabled={ro} required />
               </Field>
               <Field label="Lookback (hours)" htmlFor="digestLookbackHours" hint="Minimum window; extends back to the last brief, up to 72 h.">
-                <Input id="digestLookbackHours" name="digestLookbackHours" type="number" min={6} max={72} defaultValue={s.digestLookbackHours} disabled={ro} required />
+                <Input
+                  id="digestLookbackHours"
+                  name="digestLookbackHours"
+                  type="number"
+                  min={6}
+                  max={72}
+                  defaultValue={s.digestLookbackHours}
+                  disabled={ro}
+                  required
+                />
               </Field>
               <Field label="Recipient" htmlFor="digestRecipient" className="sm:col-span-2">
                 <Input id="digestRecipient" name="digestRecipient" type="email" defaultValue={s.digestRecipient} disabled={ro} required />
@@ -117,17 +159,36 @@ export default async function SettingsPage() {
               <Input id="alertWindowEnd" name="alertWindowEnd" type="time" defaultValue={s.alertWindowEnd} disabled={ro} required />
             </Field>
             <Field label="Max alerts per hour" htmlFor="alertMaxPerHour">
-              <Input id="alertMaxPerHour" name="alertMaxPerHour" type="number" min={1} max={20} defaultValue={s.alertMaxPerHour} disabled={ro} required />
+              <Input
+                id="alertMaxPerHour"
+                name="alertMaxPerHour"
+                type="number"
+                min={1}
+                max={20}
+                defaultValue={s.alertMaxPerHour}
+                disabled={ro}
+                required
+              />
             </Field>
             <Field label="Max alerts per day" htmlFor="alertMaxPerDay">
-              <Input id="alertMaxPerDay" name="alertMaxPerDay" type="number" min={1} max={100} defaultValue={s.alertMaxPerDay} disabled={ro} required />
+              <Input
+                id="alertMaxPerDay"
+                name="alertMaxPerDay"
+                type="number"
+                min={1}
+                max={100}
+                defaultValue={s.alertMaxPerDay}
+                disabled={ro}
+                required
+              />
             </Field>
             <label className="flex items-center gap-2 text-sm sm:col-span-2 lg:col-span-4">
-              <Checkbox name="alertP0BypassWindow" defaultChecked={s.alertP0BypassWindow} disabled={ro} /> P0 Critical alerts may be sent outside alert hours
+              <Checkbox name="alertP0BypassWindow" defaultChecked={s.alertP0BypassWindow} disabled={ro} /> P0 Critical alerts may be sent outside
+              alert hours
             </label>
             <p className="text-xs text-muted sm:col-span-2 lg:col-span-4">
-              Stories found together are batched into one email. Over the limits, alerts are suppressed and logged, and the stories appear in the next brief. P1
-              stories found outside alert hours are covered by the morning brief.
+              Stories found together are batched into one email. Over the limits, alerts are suppressed and logged, and the stories appear in the next
+              brief. P1 stories found outside alert hours are covered by the morning brief.
             </p>
             {admin ? (
               <div className="sm:col-span-2 lg:col-span-4">
@@ -148,10 +209,24 @@ export default async function SettingsPage() {
                 <Input id="highThreshold" name="highThreshold" type="number" defaultValue={s.priorityRules.highThreshold} disabled={ro} required />
               </Field>
               <Field label="Standard (P2) threshold" htmlFor="standardThreshold">
-                <Input id="standardThreshold" name="standardThreshold" type="number" defaultValue={s.priorityRules.standardThreshold} disabled={ro} required />
+                <Input
+                  id="standardThreshold"
+                  name="standardThreshold"
+                  type="number"
+                  defaultValue={s.priorityRules.standardThreshold}
+                  disabled={ro}
+                  required
+                />
               </Field>
               <Field label="P0 recency window (hours)" htmlFor="criticalWindowHours">
-                <Input id="criticalWindowHours" name="criticalWindowHours" type="number" defaultValue={s.priorityRules.criticalWindowHours} disabled={ro} required />
+                <Input
+                  id="criticalWindowHours"
+                  name="criticalWindowHours"
+                  type="number"
+                  defaultValue={s.priorityRules.criticalWindowHours}
+                  disabled={ro}
+                  required
+                />
               </Field>
             </div>
             <details className="rounded-lg border border-line">
@@ -187,7 +262,10 @@ export default async function SettingsPage() {
         {admin ? (
           <>
             <Card>
-              <CardHeader title="Staff access" description={`Invitation only: administrators add people. Only @${env().ALLOWED_EMAIL_DOMAIN} work emails can be invited.`} />
+              <CardHeader
+                title="Staff access"
+                description={`Invitation only: administrators add people. Only @${env().ALLOWED_EMAIL_DOMAIN} work emails can be invited.`}
+              />
               <dl className="grid gap-x-6 gap-y-2 border-b border-line px-5 py-4 text-xs sm:grid-cols-2">
                 {ROLES.map((r) => (
                   <div key={r}>
@@ -196,7 +274,11 @@ export default async function SettingsPage() {
                   </div>
                 ))}
               </dl>
-              <ActionForm action={inviteStaffAction} resetOnSuccess className="flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-end">
+              <ActionForm
+                action={inviteStaffAction}
+                resetOnSuccess
+                className="flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-end"
+              >
                 <Field label="Email" htmlFor="invite-email" className="flex-1">
                   <Input id="invite-email" name="email" type="email" required placeholder={`name@${env().ALLOWED_EMAIL_DOMAIN}`} />
                 </Field>
@@ -237,7 +319,13 @@ export default async function SettingsPage() {
                         <td className="px-3 py-2.5">
                           <form action={setStaffRoleAction} className="flex items-center gap-1">
                             <input type="hidden" name="userId" value={u.id} />
-                            <Select name="role" defaultValue={u.role} aria-label={`Role for ${u.email}`} className="h-8 w-40 text-xs" disabled={u.id === user.id || u.isDeveloper}>
+                            <Select
+                              name="role"
+                              defaultValue={u.role}
+                              aria-label={`Role for ${u.email}`}
+                              className="h-8 w-40 text-xs"
+                              disabled={u.id === user.id || u.isDeveloper}
+                            >
                               {ROLES.map((r) => (
                                 <option key={r} value={r}>
                                   {ROLE_LABELS[r]}
@@ -286,8 +374,8 @@ export default async function SettingsPage() {
                           #{f.id} {f.title}
                         </div>
                         <div className="text-xs text-muted">
-                          {FEATURE_CATEGORY_LABELS[f.category]} · {FEATURE_IMPORTANCE_LABELS[f.importance]} · {f.requesterEmail} · {formatDateTime(f.createdAt)} · email{" "}
-                          {delivery ?? "not sent"}
+                          {FEATURE_CATEGORY_LABELS[f.category]} · {FEATURE_IMPORTANCE_LABELS[f.importance]} · {f.requesterEmail} ·{" "}
+                          {formatDateTime(f.createdAt)} · email {delivery ?? "not sent"}
                         </div>
                         <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-muted">{f.description}</p>
                       </div>

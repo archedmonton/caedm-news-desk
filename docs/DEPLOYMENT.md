@@ -1,98 +1,142 @@
-# Deployment, IT requirements & production readiness
-
-> Nothing has been deployed. Live email is disabled. These steps need IT approval.
-
-## Target architecture
+# Deployment: Vercel + Supabase
 
 ```
-          HTTPS (org TLS cert)
-Staff ──▶ IIS / nginx reverse proxy ──▶ Node 24 LTS: `npm start` (Next.js, port 3000, localhost only)
-                                        Node 24 LTS: `npm run worker` (no inbound port)
-                                              │
-                                     data/caedm-news-desk.db (SQLite, WAL)
-                                              │
-                                  Approved SMTP relay  or  Microsoft Graph (Mail.Send)
+Staff browser ──HTTPS──▶ Vercel (Next.js, region iad1) ──Postgres (pooler :6543)──▶ Supabase (Canada Central)
+                              ▲              │
+       Vercel Cron, daily ────┘              └── approved SMTP relay or Microsoft Graph (email)
+       14:00 + 15:00 UTC (≈ 8 AM Edmonton, MDT/MST)
 ```
 
-Both processes share the same code and database file. Run **exactly one** worker. Scheduled jobs are
-idempotent, so an accidental second worker won't duplicate digests or alerts, but it does double the fetch
-load.
+## How scheduling works
 
-## IT requirements
+There is no always-on worker on Vercel. News Desk refreshes in two ways, and both call the same
+idempotent routine (`runTick`). A database lease lets only one refresh run at a time.
 
-| Item | Requirement |
-|---|---|
-| Server | Existing Windows Server 2019+ or Linux VM: 2 vCPU, 2 GB RAM, 5 GB disk. |
-| Runtime | Node.js 24 LTS (≥ 22.12 works). Building `better-sqlite3` needs no compiler on supported platforms (prebuilt binaries). |
-| Network (outbound) | HTTPS (443) to `www.vaticannews.va`, `www.alberta.ca`, `covenanthealth.ca`, `www.ecsd.net` (and future sources). The SMTP relay or `login.microsoftonline.com` + `graph.microsoft.com`. |
-| Network (inbound) | 443 only via the reverse proxy; restrict to the staff network or VPN if possible. |
-| TLS | Organization certificate on the proxy. Set `APP_URL=https://newsdesk.caedm.ca` (or chosen hostname). |
-| Email: SMTP option | An authenticated relay that may send as `newsdesk@caedm.ca` (or an approved sender) to `communications@caedm.ca` and staff addresses. |
-| Email: Graph option | An Entra app registration (client credentials) with **application** `Mail.Send`, restricted to one sender mailbox with an Application Access Policy. Entra is not required for staff sign-in. |
-| Secrets | Stored in the service environment or a protected `.env.local` readable only by the service account. Never in git. |
-| Backups | Nightly `sqlite3 data/caedm-news-desk.db ".backup backup.db"` (safe while running), with 30-day retention. |
-| Monitoring | `GET /api/health` returns 200 with worker heartbeat age. Alert if not OK or if `workerLastTickSecondsAgo > 300`. |
+1. **Daily, around 8:00 AM Edmonton: Vercel Cron.**
+   - `vercel.json` calls `/api/cron/tick` at 14:00 UTC and 15:00 UTC. Hobby crons fire somewhere within
+     that hour.
+   - In summer (MDT) the 14:00 UTC call lands at 8:xx local; in winter (MST) the 15:00 UTC call does.
+   - Each run checks all sources, sends qualifying alerts, then sends the morning brief. The brief is sent at
+     most once per Edmonton day, so the "extra" call does nothing.
+2. **While anyone is signed in: live refresh.**
+   - The dashboard asks `/api/live` once a minute.
+   - When sources are due (default every 15 minutes, configurable in Settings), the server refreshes them in
+     the background.
+   - New stories appear as a "N new stories · Show" banner.
 
-## Installation (production)
+Notes:
+- **Brief time:** with Vercel Hobby the scheduled run is fixed to the 8 AM hour. Another time in Settings
+  only takes effect at the next refresh after that time. For an exact minute, have any external scheduler
+  (e.g. Supabase `pg_cron` + `pg_net`) call `/api/cron/tick` with the same `Authorization: Bearer
+  <CRON_SECRET>` header.
+- **Alerts:** P0/P1 email alerts go out after the 8 AM run and whenever a signed-in session triggers a
+  refresh. They are not sent every few minutes overnight.
 
-```bash
-git clone <internal repo> caedm-news-desk && cd caedm-news-desk
-npm ci
-cp .env.example .env.local      # then edit values (see below)
-npm run build
-npm run db:setup                # migrations + source registry (no dev users or samples in production)
-```
+## 1. Supabase
 
-Production `.env.local`:
+1. Create the project in **Canada (Central)**, with a generated database password stored in a password
+   manager.
+2. In **Project Settings → Data API**, disable the Data API (the app connects to Postgres directly). The
+   migration also enables Row Level Security on every table as a second guard.
+3. Under **Connect**, copy:
+   - the **Transaction pooler** string (port **6543**), which becomes `DATABASE_URL` for Vercel;
+   - the **Session pooler** (or Direct) string (port **5432**), which becomes `DATABASE_URL_DIRECT` for
+     migrations.
+4. Create the tables. Run this once from your PC, passing the strings only for that one command; don't
+   save them in `.env`, or local development would use the production database.
 
-```ini
-NODE_ENV=production
-APP_URL=https://newsdesk.caedm.ca
-DATABASE_PATH=./data/caedm-news-desk.db
-ALLOWED_EMAIL_DOMAIN=caedm.ca
-DEV_LOGIN_ENABLED=false            # ignored in production anyway
-EMAIL_TRANSPORT=smtp               # or graph
-EMAIL_LIVE_SEND=true               # only after IT approval
-EMAIL_FROM="CAEDM News Desk <newsdesk@caedm.ca>"
-SMTP_HOST=… SMTP_PORT=587 SMTP_USER=… SMTP_PASSWORD=…
-PRODUCTION_ACCESS_ENABLED=true     # sign-in stays disabled until this AND live email are set
-```
+   ```powershell
+   $env:DATABASE_URL="<transaction pooler string>"; $env:DATABASE_URL_DIRECT="<session pooler string>"; $env:NODE_ENV="production"
+   npm run db:setup          # migrations + source registry + developer admin (invited)
+   Remove-Item Env:DATABASE_URL, Env:DATABASE_URL_DIRECT, Env:NODE_ENV
+   ```
 
-Run as services:
-- **Windows (NSSM):**
-  - `nssm install NewsDeskWeb "C:\Program Files\nodejs\npm.cmd" start`
-  - `nssm install NewsDeskWorker "C:\Program Files\nodejs\npm.cmd" run worker`
-  - Set the working directory for both and enable restart on failure.
-- **Linux (systemd):** two units with `WorkingDirectory=` and `Restart=always`.
+   Re-run `npm run db:migrate` the same way whenever a release adds a migration (see `drizzle/`).
 
-Bootstrap the first administrator from the server shell. It needs operator access:
+## 2. Vercel
 
-```bash
-npm run admin:invite -- firstname.lastname@caedm.ca admin
-```
+1. **Import** `archedmonton/caedm-news-desk`. Framework: Next.js; leave the build settings at their
+   defaults.
+2. Add **Environment Variables** (Production):
 
-This also emails the invitation. Everyone else is invited from **Settings → Staff access**.
+   | Name | Value |
+   |---|---|
+   | `DATABASE_URL` | Supabase **transaction pooler** string (6543) |
+   | `DATABASE_POOL_MAX` | `3` |
+   | `APP_URL` | `https://<project>.vercel.app` (or the custom domain) |
+   | `CRON_SECRET` | random 32+ chars: `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
+   | `ALLOWED_EMAIL_DOMAIN` | `caedm.ca` |
+   | `DEVELOPER_NAME` / `DEVELOPER_EMAIL` | `Ruban Peppin` / `ruban.peppin@caedm.ca` |
+   | `EMAIL_TRANSPORT` | `outbox` until IT provides email, then `smtp` or `graph` |
+   | `EMAIL_LIVE_SEND` | `false` until email is configured, then `true` |
+   | `EMAIL_FROM` | `CAEDM News Desk <newsdesk@caedm.ca>` |
+   | `PRODUCTION_ACCESS_ENABLED` | `false` until email works, then `true` |
+   | SMTP: `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` | from IT |
+   | or Graph: `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `GRAPH_SENDER` | from IT |
+
+   Don't set `DEV_LOGIN_ENABLED`; it is ignored in production anyway. The `NEXT_PUBLIC_SUPABASE_*` keys
+   are not used by this app.
+3. **Settings → Functions → Region:** Washington, D.C. (`iad1`), the closest to Supabase Canada Central.
+4. **Deploy.** Then check:
+   - `https://<app>/api/health` returns `{"ok":true,"db":"ok",…}`.
+   - **Settings → Cron Jobs** lists the two `/api/cron/tick` jobs. Use **Run** on one to collect news
+     immediately; the response shows `checked: 4`.
+
+## 3. Email and first sign-in
+
+Sign-in stays disabled in production until real email works, because invitations prove a person controls
+their @caedm.ca mailbox.
+
+1. IT provides an SMTP relay account or a Microsoft Graph app registration (`Mail.Send`, restricted to the
+   sender mailbox).
+2. Set the email variables, `EMAIL_LIVE_SEND=true` and `PRODUCTION_ACCESS_ENABLED=true`, then redeploy.
+3. Send the developer's invitation (same one-off variables as in Supabase step 4, plus
+   `APP_URL=https://<app>`):
+
+   ```powershell
+   npm run admin:invite -- ruban.peppin@caedm.ca admin
+   ```
+
+4. Open the emailed link, set a password, and sign in. Invite everyone else from **Settings → Staff access**,
+   or approve their **Request access** submissions on the Overview.
+5. **Test before going live.** Set the brief recipient to yourself, use **Email outbox → Save preview to
+   outbox**, confirm it arrives, then set it back to `communications@caedm.ca`.
 
 ## Production readiness checklist
 
-- [ ] IT approves the hosting server, hostname and TLS certificate.
-- [ ] Mail transport approved and credentials issued (SMTP relay or Graph app with a mailbox-scoped policy).
-- [ ] Send a test brief to a test mailbox (set the recipient in Settings first), then switch it to
-      `communications@caedm.ca`.
-- [ ] `EMAIL_LIVE_SEND=true` and `PRODUCTION_ACCESS_ENABLED=true` are set only after the step above.
-- [ ] First admin bootstrapped; dev accounts not present (`db:setup` never creates them in production).
-- [ ] The reverse proxy forwards only HTTPS and sets `X-Forwarded-*`. The app port is bound to localhost.
-- [ ] Nightly backup is scheduled and a restore has been tested.
-- [ ] `/api/health` is monitored.
-- [ ] Communications has reviewed the priority rules and alert hours/limits in Settings.
-- [ ] Publishers contacted (optional, recommended): ECSD, Covenant Health and GoA are asked about official
-      RSS feeds.
-- [ ] The privacy officer has reviewed the data stored: staff names and emails, story metadata, audit logs.
+- [ ] Vercel non-profit/in-house use confirmed in writing by Vercel
+- [ ] Supabase project in Canada (Central); Data API disabled; DB password in a password manager
+- [ ] `npm run db:setup` run against Supabase; `/api/health` OK
+- [ ] `CRON_SECRET` set; both cron jobs visible; a manual run returns `checked: 4`
+- [ ] IT email transport configured; test brief received; `PRODUCTION_ACCESS_ENABLED=true`
+- [ ] Developer admin signed in; Communications staff invited with the right roles
+- [ ] Brief recipient, alert hours and priority rules reviewed by Communications
+- [ ] Backups: check what your Supabase plan includes (free plans may not offer downloadable backups) and
+      schedule a periodic `pg_dump` for retention.
+- [ ] Custom domain (optional): Vercel → Domains, DNS record from IT, update `APP_URL`
 
-## Data & privacy notes
+## Verified locally in production mode (2026-10-28)
 
-- Stored per story: headline, publisher summary (≤ 400 chars), URL, dates, classification and workflow data.
-  No article bodies are stored.
-- Staff data: name, work email, role, scrypt password hash, last sign-in. Sessions store a SHA-256 of the
-  token only.
-- Audit log: every sign-in, failed sign-in, and every workflow, settings, source and staff change.
+Ran `next start` with `NODE_ENV=production`, the postgres-js driver over a Postgres network connection,
+live SMTP to a local mail catcher, and sign-in enabled. **20/20 checks passed**:
+- health and security headers
+- cron rejecting missing or wrong secrets
+- cron with the secret collecting 154 real stories from all 4 sources in ~26 s
+- no dev sign-in in production
+- invitation email → password → sign-in
+- live indicator
+- news search
+- priority override
+- source health
+- adding the real CAEDM feed through the UI
+- brief preview delivered by SMTP
+- feature request emailed to the developer with Reply-To
+- public access request reaching the admin dashboard
+- mobile layout
+
+## Self-hosting alternative
+
+The same build runs on any server with Node 24 and Postgres:
+- `npm ci && npm run build && npm run db:setup`
+- run `npm start` as a service
+- either run `npm run worker` (refreshes every minute) or call `/api/cron/tick` from the system scheduler

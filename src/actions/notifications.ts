@@ -15,7 +15,7 @@ export async function saveDigestPreviewAction(_p: ActionState): Promise<ActionSt
   try {
     const user = await requireUser("send_test_notifications");
     const nid = await createDigestPreviewNotification(undefined, undefined, user.email);
-    audit("notification.digest_preview", "notification", nid, user.id);
+    await audit("notification.digest_preview", "notification", nid, user.id);
     revalidatePath("/outbox");
     return { ok: true, message: "Preview saved to the outbox. It does not affect tomorrow's scheduled briefing." };
   } catch (e) {
@@ -27,7 +27,7 @@ export async function runAlertsNowAction(_p: ActionState): Promise<ActionState> 
   try {
     const user = await requireUser("send_test_notifications");
     const r = await processAlerts();
-    audit("notification.alerts_run", "notification", null, user.id, { status: r.status });
+    await audit("notification.alerts_run", "notification", null, user.id, { status: r.status });
     revalidatePath("/", "layout");
     if (r.status === "created") return { ok: true, message: `Alert created for ${r.storyIds.length} stories (see outbox).` };
     if (r.status === "rate_limited") return { ok: true, message: `Alert suppressed by flood control: ${r.reason}.` };
@@ -42,6 +42,6 @@ export async function retryNotificationAction(fd: FormData) {
   const user = await requireUser("send_test_notifications");
   const nid = z.coerce.number().int().positive().parse(fd.get("notificationId"));
   await deliverNotification(nid);
-  audit("notification.retried", "notification", nid, user.id);
+  await audit("notification.retried", "notification", nid, user.id);
   revalidatePath("/outbox");
 }

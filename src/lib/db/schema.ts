@@ -1,11 +1,11 @@
 import { sql } from "drizzle-orm";
-import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { bigint, boolean, index, integer, jsonb, pgTable, primaryKey, text } from "drizzle-orm/pg-core";
 
 // All timestamps are UTC epoch milliseconds.
-const now = sql`(unixepoch('subsec') * 1000)`;
-const ts = (name: string) => integer(name, { mode: "number" });
+const now = sql`(floor(extract(epoch from clock_timestamp()) * 1000))::bigint`;
+const ts = (name: string) => bigint(name, { mode: "number" });
 
-/** Highest to lowest. "communications" (MVP) was migrated to "manager". */
+/** Highest to lowest. */
 export const ROLES = ["admin", "manager", "member", "viewer"] as const;
 export type Role = (typeof ROLES)[number];
 
@@ -34,23 +34,24 @@ export type Category = (typeof CATEGORIES)[number];
 export const GEO = ["edmonton", "alberta", "canada", "international"] as const;
 export type Geo = (typeof GEO)[number];
 
-export const users = sqliteTable("users", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const users = pgTable("users", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   email: text("email").notNull().unique(),
   name: text("name").notNull().default(""),
-  role: text("role", { enum: ROLES })
+  role: text("role", { enum: ROLES }).notNull().default("member"),
+  status: text("status", { enum: ["invited", "active", "disabled"] })
     .notNull()
-    .default("member")
-    .$defaultFn(() => "member"),
-  status: text("status", { enum: ["invited", "active", "disabled"] }).notNull().default("invited"),
+    .default("invited"),
   passwordHash: text("password_hash"),
   /** The application's developer (help & support contact). Protected from demotion/disablement. */
-  isDeveloper: integer("is_developer", { mode: "boolean" }).notNull().default(false),
+  isDeveloper: boolean("is_developer").notNull().default(false),
   // Personal email notification preferences (in addition to the team mailbox in Settings).
-  notifyDigest: integer("notify_digest", { mode: "boolean" }).notNull().default(false),
-  notifyAlerts: text("notify_alerts", { enum: ["all", "p0", "none"] }).notNull().default("none"),
-  notifyAssignments: integer("notify_assignments", { mode: "boolean" }).notNull().default(true),
-  notifyAccessRequests: integer("notify_access_requests", { mode: "boolean" }).notNull().default(true),
+  notifyDigest: boolean("notify_digest").notNull().default(false),
+  notifyAlerts: text("notify_alerts", { enum: ["all", "p0", "none"] })
+    .notNull()
+    .default("none"),
+  notifyAssignments: boolean("notify_assignments").notNull().default(true),
+  notifyAccessRequests: boolean("notify_access_requests").notNull().default(true),
   failedLogins: integer("failed_logins").notNull().default(0),
   lockedUntil: ts("locked_until"),
   lastLoginAt: ts("last_login_at"),
@@ -58,10 +59,10 @@ export const users = sqliteTable("users", {
   updatedAt: ts("updated_at").notNull().default(now),
 });
 
-export const invitations = sqliteTable(
+export const invitations = pgTable(
   "invitations",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     email: text("email").notNull(),
     role: text("role", { enum: ROLES }).notNull(),
     tokenHash: text("token_hash").notNull().unique(),
@@ -74,10 +75,10 @@ export const invitations = sqliteTable(
   (t) => [index("invitations_email_idx").on(t.email)],
 );
 
-export const sessions = sqliteTable(
+export const sessions = pgTable(
   "sessions",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     tokenHash: text("token_hash").notNull().unique(),
     userId: integer("user_id")
       .notNull()
@@ -89,8 +90,8 @@ export const sessions = sqliteTable(
   (t) => [index("sessions_user_idx").on(t.userId)],
 );
 
-export const sources = sqliteTable("sources", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const sources = pgTable("sources", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   websiteUrl: text("website_url").notNull(),
@@ -101,10 +102,17 @@ export const sources = sqliteTable("sources", {
   region: text("region", { enum: GEO }).notNull(),
   importance: integer("importance").notNull().default(3), // 1–5
   defaultCategory: text("default_category", { enum: CATEGORIES }).notNull().default("other"),
-  verified: integer("verified", { mode: "boolean" }).notNull().default(false),
-  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  verified: boolean("verified").notNull().default(false),
+  enabled: boolean("enabled").notNull().default(false),
   checkIntervalMinutes: integer("check_interval_minutes"), // null → global setting
   notes: text("notes"),
+  /** Who confirmed the feed/newsroom URL works and is permitted (robots.txt), and when. */
+  verifiedAt: ts("verified_at"),
+  verifiedBy: integer("verified_by").references(() => users.id),
+  /** "registry" = shipped with the app; "admin" = added by an administrator. */
+  origin: text("origin", { enum: ["registry", "admin"] })
+    .notNull()
+    .default("registry"),
   lastCheckedAt: ts("last_checked_at"),
   lastSuccessAt: ts("last_success_at"),
   lastArticleAt: ts("last_article_at"),
@@ -115,10 +123,10 @@ export const sources = sqliteTable("sources", {
   updatedAt: ts("updated_at").notNull().default(now),
 });
 
-export const stories = sqliteTable(
+export const stories = pgTable(
   "stories",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     title: text("title").notNull(),
     canonicalUrl: text("canonical_url").notNull().unique(),
     titleFingerprint: text("title_fingerprint").notNull(),
@@ -138,14 +146,12 @@ export const stories = sqliteTable(
     priority: text("priority", { enum: PRIORITIES }).notNull().default("P3"),
     priorityScore: integer("priority_score").notNull().default(0),
     priorityReason: text("priority_reason").notNull().default(""),
-    priorityOverridden: integer("priority_overridden", { mode: "boolean" }).notNull().default(false),
-    verificationStatus: text("verification_status", { enum: VERIFICATION_STATUSES })
-      .notNull()
-      .default("unverified"),
-    sensitive: integer("sensitive", { mode: "boolean" }).notNull().default(false),
+    priorityOverridden: boolean("priority_overridden").notNull().default(false),
+    verificationStatus: text("verification_status", { enum: VERIFICATION_STATUSES }).notNull().default("unverified"),
+    sensitive: boolean("sensitive").notNull().default(false),
     reviewStatus: text("review_status", { enum: REVIEW_STATUSES }).notNull().default("new"),
-    alertSuppressed: integer("alert_suppressed", { mode: "boolean" }).notNull().default(false),
-    isSample: integer("is_sample", { mode: "boolean" }).notNull().default(false),
+    alertSuppressed: boolean("alert_suppressed").notNull().default(false),
+    isSample: boolean("is_sample").notNull().default(false),
     createdAt: ts("created_at").notNull().default(now),
     updatedAt: ts("updated_at").notNull().default(now),
   },
@@ -159,7 +165,7 @@ export const stories = sqliteTable(
   ],
 );
 
-export const storySources = sqliteTable(
+export const storySources = pgTable(
   "story_sources",
   {
     storyId: integer("story_id")
@@ -174,10 +180,10 @@ export const storySources = sqliteTable(
   (t) => [primaryKey({ columns: [t.storyId, t.sourceId] })],
 );
 
-export const storyPriorityHistory = sqliteTable(
+export const storyPriorityHistory = pgTable(
   "story_priority_history",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     storyId: integer("story_id")
       .notNull()
       .references(() => stories.id, { onDelete: "cascade" }),
@@ -190,10 +196,10 @@ export const storyPriorityHistory = sqliteTable(
   (t) => [index("priority_history_story_idx").on(t.storyId)],
 );
 
-export const followUps = sqliteTable(
+export const followUps = pgTable(
   "follow_ups",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     storyId: integer("story_id")
       .notNull()
       .unique()
@@ -208,10 +214,10 @@ export const followUps = sqliteTable(
   (t) => [index("follow_ups_assignee_idx").on(t.assigneeId), index("follow_ups_due_idx").on(t.dueAt)],
 );
 
-export const followUpNotes = sqliteTable(
+export const followUpNotes = pgTable(
   "follow_up_notes",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     followUpId: integer("follow_up_id")
       .notNull()
       .references(() => followUps.id, { onDelete: "cascade" }),
@@ -227,10 +233,10 @@ export const NOTIFICATION_KINDS = ["digest", "alert", "invite", "test", "assignm
 export const NOTIFICATION_STATUSES = ["pending", "simulated", "sent", "failed", "skipped"] as const;
 export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number];
 
-export const notifications = sqliteTable(
+export const notifications = pgTable(
   "notifications",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     kind: text("kind", { enum: NOTIFICATION_KINDS }).notNull(),
     dedupeKey: text("dedupe_key").notNull().unique(),
     recipient: text("recipient").notNull(),
@@ -242,14 +248,14 @@ export const notifications = sqliteTable(
     attempts: integer("attempts").notNull().default(0),
     nextAttemptAt: ts("next_attempt_at"),
     lastError: text("last_error"),
-    meta: text("meta", { mode: "json" }).$type<Record<string, unknown>>(),
+    meta: jsonb("meta").$type<Record<string, unknown>>(),
     createdAt: ts("created_at").notNull().default(now),
     sentAt: ts("sent_at"),
   },
   (t) => [index("notifications_kind_idx").on(t.kind, t.createdAt), index("notifications_status_idx").on(t.status)],
 );
 
-export const notificationStories = sqliteTable(
+export const notificationStories = pgTable(
   "notification_stories",
   {
     notificationId: integer("notification_id")
@@ -260,16 +266,13 @@ export const notificationStories = sqliteTable(
       .references(() => stories.id, { onDelete: "cascade" }),
     kind: text("kind", { enum: ["digest", "alert"] }).notNull(),
   },
-  (t) => [
-    primaryKey({ columns: [t.notificationId, t.storyId] }),
-    index("notification_stories_story_idx").on(t.storyId, t.kind),
-  ],
+  (t) => [primaryKey({ columns: [t.notificationId, t.storyId] }), index("notification_stories_story_idx").on(t.storyId, t.kind)],
 );
 
-export const sourceCheckLogs = sqliteTable(
+export const sourceCheckLogs = pgTable(
   "source_check_logs",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     sourceId: integer("source_id")
       .notNull()
       .references(() => sources.id, { onDelete: "cascade" }),
@@ -281,42 +284,46 @@ export const sourceCheckLogs = sqliteTable(
     itemsNew: integer("items_new").notNull().default(0),
     durationMs: integer("duration_ms"),
     error: text("error"),
-    trigger: text("trigger", { enum: ["schedule", "manual"] }).notNull().default("schedule"),
+    trigger: text("trigger", { enum: ["schedule", "manual"] })
+      .notNull()
+      .default("schedule"),
   },
   (t) => [index("check_logs_source_idx").on(t.sourceId, t.startedAt)],
 );
 
-export const auditLogs = sqliteTable(
+export const auditLogs = pgTable(
   "audit_logs",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     userId: integer("user_id").references(() => users.id),
     action: text("action").notNull(),
     entityType: text("entity_type").notNull(),
     entityId: text("entity_id"),
-    details: text("details", { mode: "json" }).$type<Record<string, unknown>>(),
+    details: jsonb("details").$type<Record<string, unknown>>(),
     createdAt: ts("created_at").notNull().default(now),
   },
   (t) => [index("audit_entity_idx").on(t.entityType, t.entityId), index("audit_created_idx").on(t.createdAt)],
 );
 
-export const applicationSettings = sqliteTable("application_settings", {
+export const applicationSettings = pgTable("application_settings", {
   key: text("key").primaryKey(),
-  value: text("value", { mode: "json" }).notNull(),
+  value: jsonb("value").notNull(),
   updatedAt: ts("updated_at").notNull().default(now),
   updatedBy: integer("updated_by").references(() => users.id),
 });
 
-export const accessRequests = sqliteTable(
+export const accessRequests = pgTable(
   "access_requests",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     email: text("email").notNull(),
     name: text("name").notNull(),
     department: text("department").notNull().default(""),
     requestedRole: text("requested_role", { enum: ROLES }).notNull().default("member"),
     reason: text("reason").notNull().default(""),
-    status: text("status", { enum: ["pending", "approved", "declined"] }).notNull().default("pending"),
+    status: text("status", { enum: ["pending", "approved", "declined"] })
+      .notNull()
+      .default("pending"),
     reviewedBy: integer("reviewed_by").references(() => users.id),
     reviewedAt: ts("reviewed_at"),
     grantedRole: text("granted_role", { enum: ROLES }),
@@ -327,14 +334,18 @@ export const accessRequests = sqliteTable(
 
 export const FEATURE_REQUEST_STATUSES = ["new", "acknowledged", "planned", "done", "declined"] as const;
 
-export const featureRequests = sqliteTable(
+export const featureRequests = pgTable(
   "feature_requests",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     title: text("title").notNull(),
     description: text("description").notNull(),
-    category: text("category", { enum: ["feature", "improvement", "bug", "source", "other"] }).notNull().default("feature"),
-    importance: text("importance", { enum: ["nice_to_have", "important", "urgent"] }).notNull().default("important"),
+    category: text("category", { enum: ["feature", "improvement", "bug", "source", "other"] })
+      .notNull()
+      .default("feature"),
+    importance: text("importance", { enum: ["nice_to_have", "important", "urgent"] })
+      .notNull()
+      .default("important"),
     requesterId: integer("requester_id").references(() => users.id),
     requesterEmail: text("requester_email").notNull(),
     page: text("page"),
@@ -349,4 +360,3 @@ export type User = typeof users.$inferSelect;
 export type Source = typeof sources.$inferSelect;
 export type Story = typeof stories.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
-

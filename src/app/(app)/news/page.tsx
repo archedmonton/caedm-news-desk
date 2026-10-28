@@ -30,8 +30,8 @@ export default async function NewsPage({ searchParams }: { searchParams: SP }) {
     review: param(sp, "review"),
     page: Number(param(sp, "page")) || 1,
   };
-  const { items, total, page, pages } = listStories(f);
-  const sourceOptions = listSourceOptions();
+  const { items, total, page, pages } = await listStories(f);
+  const sourceOptions = await listSourceOptions();
   const hasFilters = Boolean(f.q || f.source || f.priority || f.status || f.from || f.to || f.review);
   const pageHref = (p: number) => {
     const qs = new URLSearchParams(Object.entries({ ...f, page: String(p) }).filter(([, v]) => v && v !== "1") as [string, string][]);
@@ -116,10 +116,16 @@ export default async function NewsPage({ searchParams }: { searchParams: SP }) {
 
       <Card>
         {items.length ? (
-          <div className="divide-y divide-line">{items.map((s) => <StoryRow key={s.id} s={s} canReview={canReview} />)}</div>
+          <div className="divide-y divide-line">
+            {items.map((s) => (
+              <StoryRow key={s.id} s={s} canReview={canReview} />
+            ))}
+          </div>
         ) : (
           <EmptyState title={hasFilters ? "No stories match these filters" : "No stories yet"} icon={<Newspaper className="size-6" />}>
-            {hasFilters ? "Try widening the date range or clearing filters." : "Stories appear once sources are checked (the worker does this automatically)."}
+            {hasFilters
+              ? "Try widening the date range or clearing filters."
+              : "Stories appear once sources are checked (the worker does this automatically)."}
           </EmptyState>
         )}
       </Card>
@@ -140,27 +146,27 @@ export default async function NewsPage({ searchParams }: { searchParams: SP }) {
       ) : null}
 
       {can(user.role, "submit_links") ? (
-      <Card className="mt-8 p-5">
-        <h2 className="text-[15px] font-semibold">Submit a link</h2>
-        <p className="mt-0.5 text-[13px] text-muted">
-          For news from sources that aren&apos;t monitored automatically. Submitted links are marked <strong>unverified</strong>. Only the
-          publisher&apos;s own metadata is read, and only where robots.txt allows.
-        </p>
-        <ActionForm action={submitLinkAction} resetOnSuccess className="mt-4 grid gap-3 md:grid-cols-2">
-          <Field label="Article URL" htmlFor="url" className="md:col-span-2">
-            <Input id="url" name="url" type="url" required placeholder="https://…" />
-          </Field>
-          <Field label="Headline (optional)" htmlFor="title" hint="Required if the page can't be read automatically.">
-            <Input id="title" name="title" maxLength={300} />
-          </Field>
-          <Field label="Short factual summary (optional)" htmlFor="description" hint="Don't paste article text. One or two sentences.">
-            <Input id="description" name="description" maxLength={400} />
-          </Field>
-          <div className="md:col-span-2">
-            <SubmitButton pendingText="Adding…">Add to News Feed</SubmitButton>
-          </div>
-        </ActionForm>
-      </Card>
+        <Card className="mt-8 p-5">
+          <h2 className="text-[15px] font-semibold">Submit a link</h2>
+          <p className="mt-0.5 text-[13px] text-muted">
+            For news from sources that aren&apos;t monitored automatically. Submitted links are marked <strong>unverified</strong>. Only the
+            publisher&apos;s own metadata is read, and only where robots.txt allows.
+          </p>
+          <ActionForm action={submitLinkAction} resetOnSuccess className="mt-4 grid gap-3 md:grid-cols-2">
+            <Field label="Article URL" htmlFor="url" className="md:col-span-2">
+              <Input id="url" name="url" type="url" required placeholder="https://…" />
+            </Field>
+            <Field label="Headline (optional)" htmlFor="title" hint="Required if the page can't be read automatically.">
+              <Input id="title" name="title" maxLength={300} />
+            </Field>
+            <Field label="Short factual summary (optional)" htmlFor="description" hint="Don't paste article text. One or two sentences.">
+              <Input id="description" name="description" maxLength={400} />
+            </Field>
+            <div className="md:col-span-2">
+              <SubmitButton pendingText="Adding…">Add to News Feed</SubmitButton>
+            </div>
+          </ActionForm>
+        </Card>
       ) : null}
     </>
   );

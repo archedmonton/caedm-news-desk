@@ -32,14 +32,7 @@ const CATHOLIC_ORG_TYPES = new Set(["archdiocese", "catholic_partner", "catholic
 const UNVERIFIED_ORG_TYPES = new Set(["media", "manual"]);
 
 export function normalizeText(s: string): string {
-  return s
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[‘’ʼ]/g, "'")
-    .replace(/[“”]/g, '"')
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
+  return s.normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[‘’ʼ]/g, "'").replace(/[“”]/g, '"').toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 const regexCache = new Map<string, RegExp>();
@@ -215,7 +208,9 @@ export function classifyStory(input: ClassifyInput, rules: PriorityRules, now = 
     (localCatholic || (sectorRelevant && churchPolicy.length > 0 && geo !== "international"))
   ) {
     priority = "P1";
-    reasons.push(`Score ${score} ≥ high threshold ${rules.highThreshold} with a substantive development and local Catholic or Church-policy relevance`);
+    reasons.push(
+      `Score ${score} ≥ high threshold ${rules.highThreshold} with a substantive development and local Catholic or Church-policy relevance`,
+    );
   } else if (geo === "international" && !major.length && !papal.length && !arch.length) {
     priority = "P3";
     reasons.push("Routine international news — background");

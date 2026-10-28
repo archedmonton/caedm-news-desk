@@ -1,6 +1,6 @@
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { audit } from "../audit";
-import { getDb, type DB } from "../db/client";
+import { first, getDb, type DB } from "../db/client";
 import { invitations, notifications, sessions, users, type Role } from "../db/schema";
 import { env } from "../env";
 import { sha256 } from "../ingest/url";
@@ -20,59 +20,84 @@ export async function createInvitation(
 ) {
   const email = input.email.trim().toLowerCase();
   if (!isAllowedEmail(email)) throw new Error(`Only @${env().ALLOWED_EMAIL_DOMAIN} addresses can be invited.`);
-  const existing = db.select().from(users).where(eq(users.email, email)).get();
+  const existing = await first(db.select().from(users).where(eq(users.email, email)));
   if (existing?.status === "active") throw new Error("That person already has an active account.");
   const role: Role = existing?.isDeveloper ? "admin" : input.role;
-  const userId =
-    existing?.id ??
-    db.insert(users).values({ email, role, status: "invited", createdAt: now, updatedAt: now }).returning({ id: users.id }).get().id;
-  if (existing) db.update(users).set({ role, status: "invited", updatedAt: now }).where(eq(users.id, userId)).run();
+  let userId: number;
+  if (existing) {
+    userId = existing.id;
+    await db.update(users).set({ role, status: "invited", updatedAt: now }).where(eq(users.id, userId));
+  } else {
+    [{ id: userId }] = await db.insert(users).values({ email, role, status: "invited", createdAt: now, updatedAt: now }).returning({ id: users.id });
+  }
   // Revoke previous outstanding invitations for this address.
-  db.update(invitations).set({ revokedAt: now }).where(and(eq(invitations.email, email), isNull(invitations.acceptedAt), isNull(invitations.revokedAt))).run();
+  await db
+    .update(invitations)
+    .set({ revokedAt: now })
+    .where(and(eq(invitations.email, email), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
   const token = randomToken();
   const expiresAt = now + INVITE_TTL_MS;
-  db.insert(invitations).values({ email, role, tokenHash: sha256(token), invitedBy: input.invitedBy?.id ?? null, expiresAt, createdAt: now }).run();
+  await db.insert(invitations).values({ email, role, tokenHash: sha256(token), invitedBy: input.invitedBy?.id ?? null, expiresAt, createdAt: now });
   const inviteUrl = `${env().APP_URL}/invite/${token}`;
   const rendered = renderInvite({ inviteUrl, role, invitedBy: input.invitedBy?.name || "A CAEDM News Desk administrator", expiresAt });
-  const n = db
+  const [n] = await db
     .insert(notifications)
-    .values({ kind: "invite", dedupeKey: `invite:${sha256(token).slice(0, 24)}`, recipient: email, ...rendered, status: "pending", meta: { userId }, createdAt: now })
-    .returning({ id: notifications.id })
-    .get();
+    .values({
+      kind: "invite",
+      dedupeKey: `invite:${sha256(token).slice(0, 24)}`,
+      recipient: email,
+      ...rendered,
+      status: "pending",
+      meta: { userId },
+      createdAt: now,
+    })
+    .returning({ id: notifications.id });
   await deliverNotification(n.id, db, now);
-  audit("user.invited", "user", userId, input.invitedBy?.id ?? null, { email, role }, db);
+  await audit("user.invited", "user", userId, input.invitedBy?.id ?? null, { email, role }, db);
   return { userId, inviteUrl, notificationId: n.id, expiresAt };
 }
 
-export function findInvitation(token: string, db: DB = getDb(), now = Date.now()) {
-  return db
-    .select()
-    .from(invitations)
-    .where(and(eq(invitations.tokenHash, sha256(token)), isNull(invitations.acceptedAt), isNull(invitations.revokedAt), gt(invitations.expiresAt, now)))
-    .get();
+export async function findInvitation(token: string, db: DB = getDb(), now = Date.now()) {
+  return first(
+    db
+      .select()
+      .from(invitations)
+      .where(
+        and(eq(invitations.tokenHash, sha256(token)), isNull(invitations.acceptedAt), isNull(invitations.revokedAt), gt(invitations.expiresAt, now)),
+      ),
+  );
 }
 
 export async function acceptInvitation(input: { token: string; name: string; password: string }, db: DB = getDb(), now = Date.now()) {
-  const inv = findInvitation(input.token, db, now);
+  const inv = await findInvitation(input.token, db, now);
   if (!inv) throw new Error("This invitation is invalid, expired or already used.");
   const problem = passwordProblem(input.password);
   if (problem) throw new Error(problem);
   const name = input.name.trim().slice(0, 100);
   if (!name) throw new Error("Please enter your name.");
   const passwordHash = await hashPassword(input.password);
-  const user = db.select().from(users).where(eq(users.email, inv.email)).get();
+  const user = await first(db.select().from(users).where(eq(users.email, inv.email)));
   if (!user) throw new Error("Invited account no longer exists.");
-  db.transaction((tx) => {
-    tx.update(invitations).set({ acceptedAt: now }).where(eq(invitations.id, inv.id)).run();
-    tx.update(users).set({ name, passwordHash, role: inv.role, status: "active", failedLogins: 0, lockedUntil: null, updatedAt: now }).where(eq(users.id, user.id)).run();
+  await db.transaction(async (tx) => {
+    // Conditional update keeps the token single-use even if two requests race.
+    const used = await tx
+      .update(invitations)
+      .set({ acceptedAt: now })
+      .where(and(eq(invitations.id, inv.id), isNull(invitations.acceptedAt)))
+      .returning({ id: invitations.id });
+    if (!used.length) throw new Error("This invitation is invalid, expired or already used.");
+    await tx
+      .update(users)
+      .set({ name, passwordHash, role: inv.role, status: "active", failedLogins: 0, lockedUntil: null, updatedAt: now })
+      .where(eq(users.id, user.id));
   });
-  audit("user.invitation_accepted", "user", user.id, user.id, { email: inv.email }, db);
+  await audit("user.invitation_accepted", "user", user.id, user.id, { email: inv.email }, db);
   return user.id;
 }
 
 export async function authenticate(emailRaw: string, password: string, db: DB = getDb(), now = Date.now()) {
   const email = emailRaw.trim().toLowerCase();
-  const user = db.select().from(users).where(eq(users.email, email)).get();
+  const user = await first(db.select().from(users).where(eq(users.email, email)));
   const generic = "Email or password is incorrect.";
   if (!user || user.status !== "active") {
     await verifyPassword(password, null);
@@ -82,33 +107,36 @@ export async function authenticate(emailRaw: string, password: string, db: DB = 
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok) {
     const failed = user.failedLogins + 1;
-    db.update(users).set({ failedLogins: failed, lockedUntil: failed >= MAX_FAILED ? now + LOCK_MS : null }).where(eq(users.id, user.id)).run();
-    audit("auth.login_failed", "user", user.id, null, { failed }, db);
+    await db
+      .update(users)
+      .set({ failedLogins: failed, lockedUntil: failed >= MAX_FAILED ? now + LOCK_MS : null })
+      .where(eq(users.id, user.id));
+    await audit("auth.login_failed", "user", user.id, null, { failed }, db);
     throw new Error(generic);
   }
-  audit("auth.login", "user", user.id, user.id, undefined, db);
+  await audit("auth.login", "user", user.id, user.id, undefined, db);
   return user;
 }
 
-function assertNotDeveloper(userId: number, db: DB) {
-  const target = db.select().from(users).where(eq(users.id, userId)).get();
+async function assertNotDeveloper(userId: number, db: DB) {
+  const target = await first(db.select().from(users).where(eq(users.id, userId)));
   if (!target) throw new Error("User not found.");
   if (target.isDeveloper) throw new Error("The developer administrator account is protected and cannot be changed here.");
 }
 
-export function setUserStatus(userId: number, status: "active" | "disabled", actorId: number, db: DB = getDb()) {
+export async function setUserStatus(userId: number, status: "active" | "disabled", actorId: number, db: DB = getDb()) {
   if (userId === actorId && status === "disabled") throw new Error("You cannot disable your own account.");
-  assertNotDeveloper(userId, db);
-  db.update(users).set({ status, updatedAt: Date.now() }).where(eq(users.id, userId)).run();
-  if (status === "disabled") db.delete(sessions).where(eq(sessions.userId, userId)).run();
-  audit(`user.${status === "disabled" ? "disabled" : "enabled"}`, "user", userId, actorId, undefined, db);
+  await assertNotDeveloper(userId, db);
+  await db.update(users).set({ status, updatedAt: Date.now() }).where(eq(users.id, userId));
+  if (status === "disabled") await db.delete(sessions).where(eq(sessions.userId, userId));
+  await audit(`user.${status === "disabled" ? "disabled" : "enabled"}`, "user", userId, actorId, undefined, db);
 }
 
-export function setUserRole(userId: number, role: Role, actorId: number, db: DB = getDb()) {
+export async function setUserRole(userId: number, role: Role, actorId: number, db: DB = getDb()) {
   if (userId === actorId && role !== "admin") throw new Error("You cannot remove your own administrator role.");
-  assertNotDeveloper(userId, db);
-  db.update(users).set({ role, updatedAt: Date.now() }).where(eq(users.id, userId)).run();
-  audit("user.role_changed", "user", userId, actorId, { role }, db);
+  await assertNotDeveloper(userId, db);
+  await db.update(users).set({ role, updatedAt: Date.now() }).where(eq(users.id, userId));
+  await audit("user.role_changed", "user", userId, actorId, { role }, db);
 }
 
 export type NotificationPreferences = {
@@ -119,9 +147,12 @@ export type NotificationPreferences = {
 };
 
 /** Each account manages its own name and email notification preferences. */
-export function updateOwnAccount(userId: number, input: { name: string } & NotificationPreferences, db: DB = getDb()) {
+export async function updateOwnAccount(userId: number, input: { name: string } & NotificationPreferences, db: DB = getDb()) {
   const name = input.name.trim().slice(0, 100);
   if (!name) throw new Error("Please enter your name.");
-  db.update(users).set({ ...input, name, updatedAt: Date.now() }).where(eq(users.id, userId)).run();
-  audit("account.updated", "user", userId, userId, { ...input, name }, db);
+  await db
+    .update(users)
+    .set({ ...input, name, updatedAt: Date.now() })
+    .where(eq(users.id, userId));
+  await audit("account.updated", "user", userId, userId, { ...input, name }, db);
 }

@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, isNull, ne, notInArray, sql } from "drizzle-orm";
-import { getDb, type DB } from "../db/client";
+import { first, getDb, type DB } from "../db/client";
 import { followUps, notifications, notificationStories, sources, stories, users, type Story } from "../db/schema";
 import { env } from "../env";
 import { getSettings } from "../settings";
@@ -61,25 +61,23 @@ export type DigestBuild = {
 };
 
 /** Assemble (but do not store) the digest for `now`. */
-export function buildDigest(db: DB = getDb(), now = Date.now()): DigestBuild {
-  const settings = getSettings(db);
-  const last = db
-    .select({ createdAt: notifications.createdAt })
-    .from(notifications)
-    .where(and(eq(notifications.kind, "digest"), inArray(notifications.status, ["sent", "simulated"])))
-    .orderBy(desc(notifications.createdAt))
-    .get();
+export async function buildDigest(db: DB = getDb(), now = Date.now()): Promise<DigestBuild> {
+  const settings = await getSettings(db);
+  const last = await first(
+    db
+      .select({ createdAt: notifications.createdAt })
+      .from(notifications)
+      .where(and(eq(notifications.kind, "digest"), inArray(notifications.status, ["sent", "simulated"])))
+      .orderBy(desc(notifications.createdAt)),
+  );
   const lookbackStart = now - settings.digestLookbackHours * 3600_000;
   const windowStart = Math.max(Math.min(last?.createdAt ?? lookbackStart, lookbackStart), now - MAX_WINDOW_HOURS * 3600_000);
 
-  const alreadyDigested = db
-    .select({ id: notificationStories.storyId })
-    .from(notificationStories)
-    .where(eq(notificationStories.kind, "digest"));
+  const alreadyDigested = db.select({ id: notificationStories.storyId }).from(notificationStories).where(eq(notificationStories.kind, "digest"));
 
   // Effective time: publisher date if known; detection time only for non-baseline items.
-  const effective = sql<number>`coalesce(${stories.publishedAt}, case when ${stories.alertSuppressed} = 0 then ${stories.firstDetectedAt} end)`;
-  const rows = db
+  const effective = sql<number>`coalesce(${stories.publishedAt}, case when ${stories.alertSuppressed} = false then ${stories.firstDetectedAt} end)`;
+  const found = await db
     .select({ s: stories, publisher: sources.name, orgType: sources.orgType })
     .from(stories)
     .innerJoin(sources, eq(sources.id, stories.sourceId))
@@ -90,9 +88,8 @@ export function buildDigest(db: DB = getDb(), now = Date.now()): DigestBuild {
         sql`${effective} >= ${windowStart}`,
         sql`${stories.firstDetectedAt} <= ${now}`,
       ),
-    )
-    .all()
-    .map((r): Row => ({ ...r.s, publisher: r.publisher, orgType: r.orgType }));
+    );
+  const rows = found.map((r): Row => ({ ...r.s, publisher: r.publisher, orgType: r.orgType }));
 
   rows.sort((a, b) => RANK[a.priority] - RANK[b.priority] || (b.publishedAt ?? b.firstDetectedAt) - (a.publishedAt ?? a.firstDetectedAt));
 
@@ -108,15 +105,21 @@ export function buildDigest(db: DB = getDb(), now = Date.now()): DigestBuild {
     return { key: d.key, title: d.title, note: "note" in d ? d.note : undefined, stories: shown.map(toEmailStory), more: all.length - shown.length };
   });
 
-  const fuRows = db
-    .select({ title: stories.title, url: stories.canonicalUrl, assignee: users.name, assigneeEmail: users.email, dueAt: followUps.dueAt, status: stories.reviewStatus })
+  const fuRows = await db
+    .select({
+      title: stories.title,
+      url: stories.canonicalUrl,
+      assignee: users.name,
+      assigneeEmail: users.email,
+      dueAt: followUps.dueAt,
+      status: stories.reviewStatus,
+    })
     .from(followUps)
     .innerJoin(stories, eq(stories.id, followUps.storyId))
     .leftJoin(users, eq(users.id, followUps.assigneeId))
     .where(and(isNull(followUps.completedAt), inArray(stories.reviewStatus, ["reviewing", "assigned"])))
     .orderBy(sql`coalesce(${followUps.dueAt}, 9e15)`)
-    .limit(15)
-    .all();
+    .limit(15);
   const followUpsOut: DigestFollowUp[] = fuRows.map((f) => ({
     title: f.title,
     url: f.url,
@@ -140,20 +143,21 @@ export type DigestRunResult =
  * dedupe key `digest:<Edmonton date>` guarantees at most one digest per local day.
  */
 export async function runScheduledDigest(db: DB = getDb(), now = Date.now()): Promise<DigestRunResult> {
-  const settings = getSettings(db);
+  const settings = await getSettings(db);
   if (!settings.digestEnabled) return { status: "disabled" };
   const dateKey = edmontonDateKey(now);
   const dedupeKey = `digest:${dateKey}`;
   const scheduled = scheduledInstantForDay(now, settings.digestTime);
   if (now < scheduled) return { status: "not_due" };
-  if (db.select({ id: notifications.id }).from(notifications).where(eq(notifications.dedupeKey, dedupeKey)).get()) {
+  if (await first(db.select({ id: notifications.id }).from(notifications).where(eq(notifications.dedupeKey, dedupeKey)))) {
     return { status: "already_done" };
   }
   if (now > scheduled + CATCH_UP_HOURS * 3600_000) {
     // Fresh installation started after today's window: nothing was missed; the first brief goes out tomorrow.
-    if (!db.select({ id: notifications.id }).from(notifications).where(eq(notifications.kind, "digest")).get()) return { status: "not_due" };
+    if (!(await first(db.select({ id: notifications.id }).from(notifications).where(eq(notifications.kind, "digest"))))) return { status: "not_due" };
     // Worker was down through the whole window: record it visibly rather than sending a stale "morning" brief.
-    db.insert(notifications)
+    await db
+      .insert(notifications)
       .values({
         kind: "digest",
         dedupeKey,
@@ -163,31 +167,33 @@ export async function runScheduledDigest(db: DB = getDb(), now = Date.now()): Pr
         lastError: `Worker was not running between ${settings.digestTime} and ${CATCH_UP_HOURS} h later (Edmonton time).`,
         createdAt: now,
       })
-      .onConflictDoNothing()
-      .run();
+      .onConflictDoNothing();
     return { status: "missed", dateKey };
   }
-  const built = buildDigest(db, now);
-  const id = db.transaction((tx) => {
-    const row = tx
-      .insert(notifications)
-      .values({
-        kind: "digest",
-        dedupeKey,
-        recipient: digestRecipients(db, settings.digestRecipient),
-        subject: built.subject,
-        html: built.html,
-        text: built.text,
-        status: "pending",
-        meta: { dateKey, storyCount: built.storyIds.length, windowStart: built.windowStart },
-        createdAt: now,
-      })
-      .onConflictDoNothing()
-      .returning({ id: notifications.id })
-      .get();
+  const built = await buildDigest(db, now);
+  // Resolve recipients before opening the transaction (queries inside it must use tx, not db).
+  const recipient = await digestRecipients(db, settings.digestRecipient);
+  const id = await db.transaction(async (tx) => {
+    const row = (
+      await tx
+        .insert(notifications)
+        .values({
+          kind: "digest",
+          dedupeKey,
+          recipient,
+          subject: built.subject,
+          html: built.html,
+          text: built.text,
+          status: "pending",
+          meta: { dateKey, storyCount: built.storyIds.length, windowStart: built.windowStart },
+          createdAt: now,
+        })
+        .onConflictDoNothing()
+        .returning({ id: notifications.id })
+    )[0];
     if (!row) return null;
     for (const storyId of built.storyIds) {
-      tx.insert(notificationStories).values({ notificationId: row.id, storyId, kind: "digest" }).onConflictDoNothing().run();
+      await tx.insert(notificationStories).values({ notificationId: row.id, storyId, kind: "digest" }).onConflictDoNothing();
     }
     return row.id;
   });
@@ -201,23 +207,24 @@ export async function runScheduledDigest(db: DB = getDb(), now = Date.now()): Pr
  * consume stories from the real digest.
  */
 export async function createDigestPreviewNotification(db: DB = getDb(), now = Date.now(), requestedBy?: string) {
-  const settings = getSettings(db);
-  const built = buildDigest(db, now);
-  const row = db
-    .insert(notifications)
-    .values({
-      kind: "test",
-      dedupeKey: `digest-preview:${now}:${Math.random().toString(36).slice(2, 8)}`,
-      recipient: requestedBy ?? settings.digestRecipient,
-      subject: `[PREVIEW] ${built.subject}`,
-      html: built.html,
-      text: built.text,
-      status: "pending",
-      meta: { preview: true, requestedBy, storyCount: built.storyIds.length },
-      createdAt: now,
-    })
-    .returning({ id: notifications.id })
-    .get();
+  const settings = await getSettings(db);
+  const built = await buildDigest(db, now);
+  const row = (
+    await db
+      .insert(notifications)
+      .values({
+        kind: "test",
+        dedupeKey: `digest-preview:${now}:${Math.random().toString(36).slice(2, 8)}`,
+        recipient: requestedBy ?? settings.digestRecipient,
+        subject: `[PREVIEW] ${built.subject}`,
+        html: built.html,
+        text: built.text,
+        status: "pending",
+        meta: { preview: true, requestedBy, storyCount: built.storyIds.length },
+        createdAt: now,
+      })
+      .returning({ id: notifications.id })
+  )[0];
   await deliverNotification(row.id, db, now);
   return row.id;
 }

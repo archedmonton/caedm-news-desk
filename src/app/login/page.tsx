@@ -26,127 +26,127 @@ export default async function LoginPage() {
   const dev = devLoginAllowed();
   const domain = env().ALLOWED_EMAIL_DOMAIN;
   const devUsers = dev
-    ? getDb()
-        .select()
-        .from(users)
-        .where(eq(users.status, "active"))
-        .orderBy(asc(users.email))
-        .all()
-        .sort((a, b) => Number(b.isDeveloper) - Number(a.isDeveloper) || ROLE_ORDER[a.role] - ROLE_ORDER[b.role])
+    ? (await getDb().select().from(users).where(eq(users.status, "active")).orderBy(asc(users.email))).sort(
+        (a, b) => Number(b.isDeveloper) - Number(a.isDeveloper) || ROLE_ORDER[a.role] - ROLE_ORDER[b.role],
+      )
     : [];
 
   return (
     <HelpProvider developer={developerContact()} signedIn={false} context="login">
-    <div className="min-h-dvh bg-navy-900 px-4 py-8">
-      <div className="mx-auto flex max-w-sm justify-end">
-        <HelpTrigger variant="ghost" className="text-navy-100 hover:bg-white/10 hover:text-white" />
-      </div>
-      <div className="mx-auto mt-6 w-full max-w-sm">
-        <div className="mb-6 text-center">
-          <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-gold-500">Catholic Archdiocese of Edmonton</div>
-          <h1 className="mt-1 font-serif text-2xl font-semibold text-white">CAEDM News Desk</h1>
-          <p className="mt-1 text-sm text-navy-100/70">Communications monitoring · staff access only</p>
+      <div className="min-h-dvh bg-navy-900 px-4 py-8">
+        <div className="mx-auto flex max-w-sm justify-end">
+          <HelpTrigger variant="ghost" className="text-navy-100 hover:bg-white/10 hover:text-white" />
         </div>
-        <Card className="p-6">
-          {!access.enabled ? (
-            <div role="alert" className="flex gap-3 text-sm">
-              <ShieldAlert className="mt-0.5 size-5 shrink-0 text-p1" />
-              <div>
-                <p className="font-medium text-ink">Sign-in is not yet available</p>
-                <p className="mt-1 text-muted">
-                  Production access stays disabled until IT configures approved email delivery for verified invitations. {access.reason}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <ActionForm action={loginAction} className="space-y-4">
-              <Field label="Work email" htmlFor="email">
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="username"
-                  required
-                  placeholder={`name@${domain}`}
-                  pattern={`[^@\\s]+@${domain.replace(/\./g, "\\.")}`}
-                  title={`Use your @${domain} work email`}
-                />
-              </Field>
-              <Field label="Password" htmlFor="password">
-                <Input id="password" name="password" type="password" autoComplete="current-password" required />
-              </Field>
-              <SubmitButton className="w-full" pendingText="Signing in…">
-                Sign in
-              </SubmitButton>
-            </ActionForm>
-          )}
-        </Card>
-
-        <Card className="mt-4 p-0">
-          <details className="group">
-            <summary className="flex cursor-pointer list-none items-center gap-2 px-6 py-4 text-sm font-medium text-ink">
-              <UserPlus className="size-4 text-navy-700" /> Don&apos;t have an account? Request access
-            </summary>
-            <div className="border-t border-line px-6 py-5">
-              <p className="mb-4 text-xs text-muted">
-                Your details go to the News Desk administrators. If approved, you&apos;ll receive an invitation at your work email.
-              </p>
-              <ActionForm action={requestAccessAction} resetOnSuccess className="space-y-3">
-                {/* Honeypot for bots; hidden from people and assistive technology. */}
-                <div aria-hidden className="absolute -left-[9999px]">
-                  <label>
-                    Website <input name="website" tabIndex={-1} autoComplete="off" />
-                  </label>
+        <div className="mx-auto mt-6 w-full max-w-sm">
+          <div className="mb-6 text-center">
+            <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-gold-500">Catholic Archdiocese of Edmonton</div>
+            <h1 className="mt-1 font-serif text-2xl font-semibold text-white">CAEDM News Desk</h1>
+            <p className="mt-1 text-sm text-navy-100/70">Communications monitoring · staff access only</p>
+          </div>
+          <Card className="p-6">
+            {!access.enabled ? (
+              <div role="alert" className="flex gap-3 text-sm">
+                <ShieldAlert className="mt-0.5 size-5 shrink-0 text-p1" />
+                <div>
+                  <p className="font-medium text-ink">Sign-in is not yet available</p>
+                  <p className="mt-1 text-muted">
+                    Production access stays disabled until IT configures approved email delivery for verified invitations. {access.reason}
+                  </p>
                 </div>
-                <Field label="Full name" htmlFor="ra-name">
-                  <Input id="ra-name" name="name" required maxLength={100} autoComplete="name" />
+              </div>
+            ) : (
+              <ActionForm action={loginAction} className="space-y-4">
+                <Field label="Work email" htmlFor="email">
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="username"
+                    required
+                    placeholder={`name@${domain}`}
+                    pattern={`[^@\\s]+@${domain.replace(/\./g, "\\.")}`}
+                    title={`Use your @${domain} work email`}
+                  />
                 </Field>
-                <Field label="Work email" htmlFor="ra-email">
-                  <Input id="ra-email" name="email" type="email" required placeholder={`name@${domain}`} autoComplete="email" />
+                <Field label="Password" htmlFor="password">
+                  <Input id="password" name="password" type="password" autoComplete="current-password" required />
                 </Field>
-                <Field label="Department or position" htmlFor="ra-dept">
-                  <Input id="ra-dept" name="department" maxLength={120} placeholder="e.g. Communications, Catholic Education office" />
-                </Field>
-                <Field label="Access needed" htmlFor="ra-role">
-                  <Select id="ra-role" name="requestedRole" defaultValue="member">
-                    {(["viewer", "member", "manager"] as const).map((r) => (
-                      <option key={r} value={r}>
-                        {ROLE_LABELS[r]}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Why do you need access? (optional)" htmlFor="ra-reason">
-                  <Textarea id="ra-reason" name="reason" maxLength={1000} rows={3} />
-                </Field>
-                <SubmitButton variant="outline" className="w-full" pendingText="Sending…">
-                  Send request
+                <SubmitButton className="w-full" pendingText="Signing in…">
+                  Sign in
                 </SubmitButton>
               </ActionForm>
-            </div>
-          </details>
-        </Card>
-
-        {dev ? (
-          <Card className="mt-4 border-dashed p-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-p1">Development sign-in</p>
-            <p className="mt-1 text-xs text-muted">Local development only. This panel cannot appear in a production build.</p>
-            <div className="mt-3 space-y-2">
-              {devUsers.length === 0 ? <p className="text-sm text-muted">No active users. Run <code>npm run db:setup</code>.</p> : null}
-              {devUsers.map((u) => (
-                <form key={u.id} action={devLoginAction}>
-                  <input type="hidden" name="userId" value={u.id} />
-                  <SubmitButton variant="outline" size="sm" className="w-full justify-between">
-                    <span>{u.name || u.email}</span>
-                    <span className="text-xs text-muted">{u.isDeveloper ? "Developer · Administrator" : ROLE_LABELS[u.role]}</span>
-                  </SubmitButton>
-                </form>
-              ))}
-            </div>
+            )}
           </Card>
-        ) : null}
+
+          <Card className="mt-4 p-0">
+            <details className="group">
+              <summary className="flex cursor-pointer list-none items-center gap-2 px-6 py-4 text-sm font-medium text-ink">
+                <UserPlus className="size-4 text-navy-700" /> Don&apos;t have an account? Request access
+              </summary>
+              <div className="border-t border-line px-6 py-5">
+                <p className="mb-4 text-xs text-muted">
+                  Your details go to the News Desk administrators. If approved, you&apos;ll receive an invitation at your work email.
+                </p>
+                <ActionForm action={requestAccessAction} resetOnSuccess className="space-y-3">
+                  {/* Honeypot for bots; hidden from people and assistive technology. */}
+                  <div aria-hidden className="absolute -left-[9999px]">
+                    <label>
+                      Website <input name="website" tabIndex={-1} autoComplete="off" />
+                    </label>
+                  </div>
+                  <Field label="Full name" htmlFor="ra-name">
+                    <Input id="ra-name" name="name" required maxLength={100} autoComplete="name" />
+                  </Field>
+                  <Field label="Work email" htmlFor="ra-email">
+                    <Input id="ra-email" name="email" type="email" required placeholder={`name@${domain}`} autoComplete="email" />
+                  </Field>
+                  <Field label="Department or position" htmlFor="ra-dept">
+                    <Input id="ra-dept" name="department" maxLength={120} placeholder="e.g. Communications, Catholic Education office" />
+                  </Field>
+                  <Field label="Access needed" htmlFor="ra-role">
+                    <Select id="ra-role" name="requestedRole" defaultValue="member">
+                      {(["viewer", "member", "manager"] as const).map((r) => (
+                        <option key={r} value={r}>
+                          {ROLE_LABELS[r]}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Why do you need access? (optional)" htmlFor="ra-reason">
+                    <Textarea id="ra-reason" name="reason" maxLength={1000} rows={3} />
+                  </Field>
+                  <SubmitButton variant="outline" className="w-full" pendingText="Sending…">
+                    Send request
+                  </SubmitButton>
+                </ActionForm>
+              </div>
+            </details>
+          </Card>
+
+          {dev ? (
+            <Card className="mt-4 border-dashed p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-p1">Development sign-in</p>
+              <p className="mt-1 text-xs text-muted">Local development only. This panel cannot appear in a production build.</p>
+              <div className="mt-3 space-y-2">
+                {devUsers.length === 0 ? (
+                  <p className="text-sm text-muted">
+                    No active users. Run <code>npm run db:setup</code>.
+                  </p>
+                ) : null}
+                {devUsers.map((u) => (
+                  <form key={u.id} action={devLoginAction}>
+                    <input type="hidden" name="userId" value={u.id} />
+                    <SubmitButton variant="outline" size="sm" className="w-full justify-between">
+                      <span>{u.name || u.email}</span>
+                      <span className="text-xs text-muted">{u.isDeveloper ? "Developer · Administrator" : ROLE_LABELS[u.role]}</span>
+                    </SubmitButton>
+                  </form>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+        </div>
       </div>
-    </div>
     </HelpProvider>
   );
 }

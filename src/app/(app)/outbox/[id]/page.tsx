@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Email" };
 
 export default async function NotificationPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
-  const n = getNotification(Number((await params).id));
+  const n = await getNotification(Number((await params).id));
   if (!n) notFound();
   // Invitation and access-request emails contain sign-up links or personal details: administrators only.
   if ((n.kind === "invite" || n.kind === "access_request") && !can(user.role, "manage_staff")) notFound();
@@ -77,9 +77,9 @@ export default async function NotificationPage({ params }: { params: Promise<{ i
             </Card>
           ) : null}
           <Card>
-              <CardHeader title="Plain-text version" />
-              <pre className="max-h-96 overflow-auto whitespace-pre-wrap px-5 py-4 font-sans text-xs text-muted">{n.text}</pre>
-            </Card>
+            <CardHeader title="Plain-text version" />
+            <pre className="max-h-96 overflow-auto whitespace-pre-wrap px-5 py-4 font-sans text-xs text-muted">{n.text}</pre>
+          </Card>
         </div>
       </div>
     </>

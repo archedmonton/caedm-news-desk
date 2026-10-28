@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, Checkbox, Field, Input } from "@/components/ui/primitives";
 import { can, ROLE_DESCRIPTIONS, ROLE_LABELS } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
-import { getDb } from "@/lib/db/client";
+import { first, getDb } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
 import { liveEmailStatus } from "@/lib/notify/transport";
 import { getSettings } from "@/lib/settings";
@@ -29,8 +29,8 @@ function Radio({ name, value, checked, label, hint }: { name: string; value: str
 
 export default async function AccountPage() {
   const session = await requireUser("manage_own_account");
-  const me = getDb().select().from(users).where(eq(users.id, session.id)).get()!;
-  const s = getSettings();
+  const me = (await first(getDb().select().from(users).where(eq(users.id, session.id))))!;
+  const s = await getSettings();
   const mail = liveEmailStatus();
   const isAdmin = can(me.role, "manage_staff");
 
@@ -72,7 +72,13 @@ export default async function AccountPage() {
                 </label>
                 <fieldset>
                   <legend className="mb-1 text-sm font-medium text-ink">High-priority alerts</legend>
-                  <Radio name="notifyAlerts" value="all" checked={me.notifyAlerts === "all"} label="P0 Critical and P1 High" hint="Sent during alert hours (P0 may be sent at any time)." />
+                  <Radio
+                    name="notifyAlerts"
+                    value="all"
+                    checked={me.notifyAlerts === "all"}
+                    label="P0 Critical and P1 High"
+                    hint="Sent during alert hours (P0 may be sent at any time)."
+                  />
                   <Radio name="notifyAlerts" value="p0" checked={me.notifyAlerts === "p0"} label="P0 Critical only" />
                   <Radio name="notifyAlerts" value="none" checked={me.notifyAlerts === "none"} label="None (I'll check the dashboard)" />
                 </fieldset>

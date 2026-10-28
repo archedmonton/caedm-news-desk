@@ -19,9 +19,16 @@ export const metadata: Metadata = { title: "Overview" };
 
 function Stat({ label, value, sub, href, tone }: { label: string; value: number | string; sub?: string; href: string; tone?: "alert" | "warn" }) {
   return (
-    <Link href={href} className="group rounded-xl border border-line bg-surface px-4 py-4 transition-colors hover:border-navy-100 hover:bg-navy-50/40">
+    <Link
+      href={href}
+      className="group rounded-xl border border-line bg-surface px-4 py-4 transition-colors hover:border-navy-100 hover:bg-navy-50/40"
+    >
       <div className="text-[13px] text-muted">{label}</div>
-      <div className={cn("mt-1 font-serif text-3xl font-semibold tabular-nums text-ink", tone === "alert" && "text-p0", tone === "warn" && "text-p1")}>{value}</div>
+      <div
+        className={cn("mt-1 font-serif text-3xl font-semibold tabular-nums text-ink", tone === "alert" && "text-p0", tone === "warn" && "text-p1")}
+      >
+        {value}
+      </div>
       {sub ? <div className="mt-0.5 text-xs text-subtle">{sub}</div> : null}
     </Link>
   );
@@ -30,14 +37,15 @@ function Stat({ label, value, sub, href, tone }: { label: string; value: number 
 export default async function OverviewPage() {
   const user = await requireUser();
   const now = Date.now();
-  const o = getOverview(now);
-  const requests = can(user.role, "manage_staff") ? listAccessRequests("dashboard") : [];
+  const o = await getOverview(now);
+  const requests = can(user.role, "manage_staff") ? await listAccessRequests("dashboard") : [];
   const canReview = can(user.role, "review_news");
-  const settings = getSettings();
+  const settings = await getSettings();
   const healthy = o.sources.filter((s) => sourceHealth(s) === "healthy").length;
   const enabled = o.sources.filter((s) => s.enabled);
   const problems = enabled.filter((s) => ["degraded", "failing"].includes(sourceHealth(s)));
-  const workerStale = !o.worker || now - o.worker.lastTickAt > 5 * 60_000;
+  // The daily cron (~8 AM) plus live refresh while staff are signed in keep this well under a day.
+  const refreshStale = !!o.tick && now - o.tick.lastTickAt > 26 * 3600_000;
 
   return (
     <>
@@ -58,14 +66,14 @@ export default async function OverviewPage() {
         </div>
       ) : null}
 
-      {workerStale || problems.length || o.failedDeliveries ? (
+      {refreshStale || problems.length || o.failedDeliveries ? (
         <div className="mb-6 space-y-2">
-          {workerStale ? (
+          {refreshStale && o.tick ? (
             <div role="status" className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
               <Clock className="mt-0.5 size-4 shrink-0" />
               <span>
-                The background worker {o.worker ? `last ran ${formatRelative(o.worker.lastTickAt, now)}` : "has not run yet"}. Scheduled checks, alerts and the morning
-                brief need it running: <code className="rounded bg-white/60 px-1">npm run worker</code>.
+                The scheduled refresh last ran {formatRelative(o.tick.lastTickAt, now)}. The daily 8 AM run may not be reaching the app; an
+                administrator should check the Vercel Cron logs and the CRON_SECRET setting.
               </span>
             </div>
           ) : null}
@@ -95,11 +103,40 @@ export default async function OverviewPage() {
       ) : null}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <Stat label="New stories (24 h)" value={o.newStories} sub={o.newTotal24h > o.newStories ? `${o.newTotal24h - o.newStories} more from first-time source sync` : `${o.unreviewed} awaiting review`} href="/news?sort=detected" />
-        <Stat label="High-priority open" value={o.highOpen} sub="P0 / P1 not yet covered" href="/news?priority=high&status=open&sort=priority" tone={o.highOpen ? "alert" : undefined} />
-        <Stat label="Needs review" value={o.needsReview} sub="Sensitive or unverified" href="/news?review=1&status=new" tone={o.needsReview ? "warn" : undefined} />
-        <Stat label="Open follow-ups" value={o.openFollowUps} sub={o.overdueFollowUps ? `${o.overdueFollowUps} overdue` : "None overdue"} href="/follow-ups" tone={o.overdueFollowUps ? "alert" : undefined} />
-        <Stat label="Sources healthy" value={`${healthy}/${enabled.length}`} sub={problems.length ? `${problems.length} with errors` : "All monitored sources OK"} href="/sources" tone={problems.length ? "warn" : undefined} />
+        <Stat
+          label="New stories (24 h)"
+          value={o.newStories}
+          sub={o.newTotal24h > o.newStories ? `${o.newTotal24h - o.newStories} more from first-time source sync` : `${o.unreviewed} awaiting review`}
+          href="/news?sort=detected"
+        />
+        <Stat
+          label="High-priority open"
+          value={o.highOpen}
+          sub="P0 / P1 not yet covered"
+          href="/news?priority=high&status=open&sort=priority"
+          tone={o.highOpen ? "alert" : undefined}
+        />
+        <Stat
+          label="Needs review"
+          value={o.needsReview}
+          sub="Sensitive or unverified"
+          href="/news?review=1&status=new"
+          tone={o.needsReview ? "warn" : undefined}
+        />
+        <Stat
+          label="Open follow-ups"
+          value={o.openFollowUps}
+          sub={o.overdueFollowUps ? `${o.overdueFollowUps} overdue` : "None overdue"}
+          href="/follow-ups"
+          tone={o.overdueFollowUps ? "alert" : undefined}
+        />
+        <Stat
+          label="Sources healthy"
+          value={`${healthy}/${enabled.length}`}
+          sub={problems.length ? `${problems.length} with errors` : "All monitored sources OK"}
+          href="/sources"
+          tone={problems.length ? "warn" : undefined}
+        />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
@@ -115,7 +152,11 @@ export default async function OverviewPage() {
               }
             />
             {o.highPriority.length ? (
-              <div className="divide-y divide-line">{o.highPriority.map((s) => <StoryRow key={s.id} s={s} canReview={canReview} />)}</div>
+              <div className="divide-y divide-line">
+                {o.highPriority.map((s) => (
+                  <StoryRow key={s.id} s={s} canReview={canReview} />
+                ))}
+              </div>
             ) : (
               <EmptyState title="No open high-priority stories" icon={<CheckCircle2 className="size-6" />}>
                 New P0/P1 developments will appear here and trigger an email alert during alert hours.
@@ -133,7 +174,11 @@ export default async function OverviewPage() {
               }
             />
             {o.recent.length ? (
-              <div className="divide-y divide-line">{o.recent.map((s) => <StoryRow key={s.id} s={s} actions={false} />)}</div>
+              <div className="divide-y divide-line">
+                {o.recent.map((s) => (
+                  <StoryRow key={s.id} s={s} actions={false} />
+                ))}
+              </div>
             ) : (
               <EmptyState title="No recent stories" icon={<Newspaper className="size-6" />}>
                 Stories appear after sources are checked. An administrator can run a check from the Sources page.
@@ -185,9 +230,13 @@ export default async function OverviewPage() {
             </ul>
           </Card>
           {o.needsReview ? (
-            <Link href="/news?review=1&status=new" className="flex items-start gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900 hover:bg-orange-100/60">
+            <Link
+              href="/news?review=1&status=new"
+              className="flex items-start gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900 hover:bg-orange-100/60"
+            >
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-              {o.needsReview} {o.needsReview === 1 ? "story involves" : "stories involve"} sensitive or unverified claims and need human review before any external use.
+              {o.needsReview} {o.needsReview === 1 ? "story involves" : "stories involve"} sensitive or unverified claims and need human review before
+              any external use.
             </Link>
           ) : null}
         </div>

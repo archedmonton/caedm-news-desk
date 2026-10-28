@@ -25,7 +25,7 @@ const fail = (e: unknown): ActionState => ({ error: (e as Error).message || "Som
 export async function setStatusAction(fd: FormData) {
   const user = await requireUser("review_news");
   const storyId = id.parse(fd.get("storyId"));
-  setReviewStatus(storyId, z.enum(REVIEW_STATUSES).parse(fd.get("status")), user.id);
+  await setReviewStatus(storyId, z.enum(REVIEW_STATUSES).parse(fd.get("status")), user.id);
   refresh(storyId);
 }
 
@@ -43,7 +43,7 @@ export async function overridePriorityAction(_p: ActionState, fd: FormData): Pro
     const user = await requireUser("change_priority");
     const storyId = id.parse(fd.get("storyId"));
     const priority = z.enum(PRIORITIES).parse(fd.get("priority"));
-    overridePriority(storyId, priority, String(fd.get("reason") ?? ""), user.id);
+    await overridePriority(storyId, priority, String(fd.get("reason") ?? ""), user.id);
     refresh(storyId);
     return {
       ok: true,
@@ -60,14 +60,14 @@ export async function overridePriorityAction(_p: ActionState, fd: FormData): Pro
 export async function resetPriorityAction(fd: FormData) {
   const user = await requireUser("change_priority");
   const storyId = id.parse(fd.get("storyId"));
-  resetPriority(storyId, user.id);
+  await resetPriority(storyId, user.id);
   refresh(storyId);
 }
 
 export async function markVerifiedAction(fd: FormData) {
   const user = await requireUser("review_news");
   const storyId = id.parse(fd.get("storyId"));
-  markVerified(storyId, user.id);
+  await markVerified(storyId, user.id);
   refresh(storyId);
 }
 
@@ -89,7 +89,7 @@ export async function assignFollowUpAction(_p: ActionState, fd: FormData): Promi
     const dueAt = parseDue(String(fd.get("dueDate") ?? ""), String(fd.get("dueTime") ?? ""));
     const assigneeId = assigneeRaw ? id.parse(assigneeRaw) : null;
     const note = String(fd.get("note") ?? "");
-    const followUpId = assignFollowUp(storyId, { assigneeId, dueAt, note }, user.id);
+    const followUpId = await assignFollowUp(storyId, { assigneeId, dueAt, note }, user.id);
     const emailed = await notifyAssignment({ storyId, followUpId, assigneeId, actorId: user.id, dueAt, note });
     refresh(storyId);
     return { ok: true, message: emailed ? "Follow-up assigned. The assignee was notified by email." : "Follow-up assigned." };
@@ -102,7 +102,7 @@ export async function addNoteAction(_p: ActionState, fd: FormData): Promise<Acti
   try {
     const user = await requireUser("manage_follow_ups");
     const storyId = id.parse(fd.get("storyId"));
-    addFollowUpNote(storyId, String(fd.get("body") ?? ""), user.id);
+    await addFollowUpNote(storyId, String(fd.get("body") ?? ""), user.id);
     refresh(storyId);
     return { ok: true, message: "Note added." };
   } catch (e) {
@@ -113,9 +113,13 @@ export async function addNoteAction(_p: ActionState, fd: FormData): Promise<Acti
 export async function submitLinkAction(_p: ActionState, fd: FormData): Promise<ActionState> {
   try {
     const user = await requireUser("submit_links");
-    const url = z.string().url().max(2000).parse(String(fd.get("url") ?? "").trim());
+    const url = z
+      .string()
+      .url()
+      .max(2000)
+      .parse(String(fd.get("url") ?? "").trim());
     const res = await submitManualLink({ url, title: String(fd.get("title") ?? ""), description: String(fd.get("description") ?? "") });
-    audit("story.manual_submitted", "story", res.storyId, user.id, { url, duplicate: res.duplicate });
+    await audit("story.manual_submitted", "story", res.storyId, user.id, { url, duplicate: res.duplicate });
     refresh(res.storyId ?? undefined);
     if (res.duplicate) return { ok: true, message: "That link is already in the News Feed." };
     return { ok: true, message: `Link added as an unverified story.${res.note ? ` ${res.note}` : ""}` };

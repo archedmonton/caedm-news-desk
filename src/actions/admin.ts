@@ -8,14 +8,16 @@ import { audit } from "@/lib/audit";
 import { productionAccess } from "@/lib/auth/access";
 import { requireUser } from "@/lib/auth/session";
 import { createInvitation, setUserRole, setUserStatus } from "@/lib/auth/users";
-import { getDb } from "@/lib/db/client";
+import { first, getDb } from "@/lib/db/client";
 import { ROLES, sources } from "@/lib/db/schema";
 import { checkSource, reclassifyAll } from "@/lib/ingest/collector";
 import { RULE_LIST_KEYS, type PriorityRules } from "@/lib/priority/rules";
 import { getSettings, setSettings, settingsSchema } from "@/lib/settings";
 
 const id = z.coerce.number().int().positive();
-const fail = (e: unknown): ActionState => ({ error: e instanceof z.ZodError ? e.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") : (e as Error).message });
+const fail = (e: unknown): ActionState => ({
+  error: e instanceof z.ZodError ? e.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") : (e as Error).message,
+});
 
 // ---------- Sources ----------
 
@@ -24,11 +26,14 @@ export async function toggleSourceAction(fd: FormData) {
   const sourceId = id.parse(fd.get("sourceId"));
   const enable = fd.get("enabled") === "true";
   const db = getDb();
-  const src = db.select().from(sources).where(eq(sources.id, sourceId)).get();
+  const src = await first(db.select().from(sources).where(eq(sources.id, sourceId)));
   if (!src) throw new Error("Source not found");
   if (enable && !src.verified) throw new Error("Unverified sources cannot be enabled.");
-  db.update(sources).set({ enabled: enable, nextCheckAt: enable ? Date.now() : src.nextCheckAt, updatedAt: Date.now() }).where(eq(sources.id, sourceId)).run();
-  audit(enable ? "source.enabled" : "source.disabled", "source", sourceId, user.id, { slug: src.slug });
+  await db
+    .update(sources)
+    .set({ enabled: enable, nextCheckAt: enable ? Date.now() : src.nextCheckAt, updatedAt: Date.now() })
+    .where(eq(sources.id, sourceId));
+  await audit(enable ? "source.enabled" : "source.disabled", "source", sourceId, user.id, { slug: src.slug });
   revalidatePath("/", "layout");
 }
 
@@ -37,10 +42,13 @@ export async function checkSourceNowAction(_p: ActionState, fd: FormData): Promi
     const user = await requireUser("check_sources");
     const sourceId = id.parse(fd.get("sourceId"));
     const r = await checkSource(sourceId, { trigger: "manual" });
-    audit("source.checked_manually", "source", sourceId, user.id, { status: r.status, itemsNew: r.itemsNew });
+    await audit("source.checked_manually", "source", sourceId, user.id, { status: r.status, itemsNew: r.itemsNew });
     revalidatePath("/", "layout");
     return r.status === "success"
-      ? { ok: true, message: `Checked: ${r.itemsFound} items found, ${r.itemsNew} new.${r.warnings.length ? ` ${r.warnings.length} warning(s).` : ""}` }
+      ? {
+          ok: true,
+          message: `Checked: ${r.itemsFound} items found, ${r.itemsNew} new.${r.warnings.length ? ` ${r.warnings.length} warning(s).` : ""}`,
+        }
       : { error: `Check failed: ${r.error}` };
   } catch (e) {
     return fail(e);
@@ -54,7 +62,7 @@ const bool = (v: FormDataEntryValue | null) => v === "on" || v === "true";
 export async function saveSettingsAction(_p: ActionState, fd: FormData): Promise<ActionState> {
   try {
     const user = await requireUser("manage_settings");
-    const current = getSettings();
+    const current = await getSettings();
     const section = String(fd.get("section"));
     const raw: Record<string, unknown> = { ...current };
     for (const [k, v] of fd.entries()) if (!k.startsWith("$") && k !== "section") raw[k] = v;
@@ -64,8 +72,8 @@ export async function saveSettingsAction(_p: ActionState, fd: FormData): Promise
       raw.alertP0BypassWindow = bool(fd.get("alertP0BypassWindow"));
     }
     const parsed = settingsSchema.parse(raw);
-    setSettings(parsed, user.id);
-    audit("settings.updated", "settings", section, user.id, Object.fromEntries(Object.entries(parsed).filter(([k]) => fd.has(k))));
+    await setSettings(parsed, user.id);
+    await audit("settings.updated", "settings", section, user.id, Object.fromEntries(Object.entries(parsed).filter(([k]) => fd.has(k))));
     revalidatePath("/", "layout");
     return { ok: true, message: "Settings saved." };
   } catch (e) {
@@ -76,7 +84,7 @@ export async function saveSettingsAction(_p: ActionState, fd: FormData): Promise
 export async function savePriorityRulesAction(_p: ActionState, fd: FormData): Promise<ActionState> {
   try {
     const user = await requireUser("manage_settings");
-    const rules: PriorityRules = { ...getSettings().priorityRules };
+    const rules: PriorityRules = { ...(await getSettings()).priorityRules };
     for (const key of RULE_LIST_KEYS) {
       const v = fd.get(key);
       if (typeof v === "string") {
@@ -93,14 +101,21 @@ export async function savePriorityRulesAction(_p: ActionState, fd: FormData): Pr
         standardThreshold: z.coerce.number().int().min(0).max(200),
         criticalWindowHours: z.coerce.number().int().min(1).max(336),
       })
-      .parse({ highThreshold: fd.get("highThreshold"), standardThreshold: fd.get("standardThreshold"), criticalWindowHours: fd.get("criticalWindowHours") });
+      .parse({
+        highThreshold: fd.get("highThreshold"),
+        standardThreshold: fd.get("standardThreshold"),
+        criticalWindowHours: fd.get("criticalWindowHours"),
+      });
     if (nums.standardThreshold >= nums.highThreshold) throw new Error("Standard threshold must be lower than the high threshold.");
     Object.assign(rules, nums);
-    setSettings({ priorityRules: rules }, user.id);
-    const r = fd.get("reclassify") === "on" ? reclassifyAll() : null;
-    audit("settings.priority_rules_updated", "settings", "priorityRules", user.id, { ...nums, reclassified: r });
+    await setSettings({ priorityRules: rules }, user.id);
+    const r = fd.get("reclassify") === "on" ? await reclassifyAll() : null;
+    await audit("settings.priority_rules_updated", "settings", "priorityRules", user.id, { ...nums, reclassified: r });
     revalidatePath("/", "layout");
-    return { ok: true, message: r ? `Rules saved. Re-classified ${r.total} stories (${r.changed} changed priority).` : "Rules saved. New stories will use them." };
+    return {
+      ok: true,
+      message: r ? `Rules saved. Re-classified ${r.total} stories (${r.changed} changed priority).` : "Rules saved. New stories will use them.",
+    };
   } catch (e) {
     return fail(e);
   }
@@ -109,8 +124,8 @@ export async function savePriorityRulesAction(_p: ActionState, fd: FormData): Pr
 export async function reclassifyAction(_p: ActionState): Promise<ActionState> {
   try {
     const user = await requireUser("manage_settings");
-    const r = reclassifyAll();
-    audit("stories.reclassified", "settings", "priorityRules", user.id, r);
+    const r = await reclassifyAll();
+    await audit("stories.reclassified", "settings", "priorityRules", user.id, r);
     revalidatePath("/", "layout");
     return { ok: true, message: `Re-classified ${r.total} stories (${r.changed} changed priority). Manual overrides were kept.` };
   } catch (e) {
@@ -124,7 +139,10 @@ export async function inviteStaffAction(_p: ActionState, fd: FormData): Promise<
   try {
     const user = await requireUser("manage_staff");
     if (!productionAccess().enabled) throw new Error("Invitations are disabled until verified email delivery is configured.");
-    const email = z.string().email().parse(String(fd.get("email") ?? "").trim());
+    const email = z
+      .string()
+      .email()
+      .parse(String(fd.get("email") ?? "").trim());
     const role = z.enum(ROLES).parse(fd.get("role"));
     await createInvitation({ email, role, invitedBy: { id: user.id, name: user.name || user.email } });
     revalidatePath("/settings");
@@ -136,12 +154,12 @@ export async function inviteStaffAction(_p: ActionState, fd: FormData): Promise<
 
 export async function setStaffStatusAction(fd: FormData) {
   const user = await requireUser("manage_staff");
-  setUserStatus(id.parse(fd.get("userId")), fd.get("status") === "disabled" ? "disabled" : "active", user.id);
+  await setUserStatus(id.parse(fd.get("userId")), fd.get("status") === "disabled" ? "disabled" : "active", user.id);
   revalidatePath("/settings");
 }
 
 export async function setStaffRoleAction(fd: FormData) {
   const user = await requireUser("manage_staff");
-  setUserRole(id.parse(fd.get("userId")), z.enum(ROLES).parse(fd.get("role")), user.id);
+  await setUserRole(id.parse(fd.get("userId")), z.enum(ROLES).parse(fd.get("role")), user.id);
   revalidatePath("/settings");
 }

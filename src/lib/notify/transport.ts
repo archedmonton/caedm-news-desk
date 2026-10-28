@@ -11,7 +11,8 @@ export interface MailTransport {
 /** Why live delivery is (un)available. Never exposes secret values. */
 export function liveEmailStatus(): { live: boolean; transport: string; reason: string } {
   const e = env();
-  if (!e.EMAIL_LIVE_SEND) return { live: false, transport: e.EMAIL_TRANSPORT, reason: "EMAIL_LIVE_SEND is not enabled — messages are simulated in the outbox." };
+  if (!e.EMAIL_LIVE_SEND)
+    return { live: false, transport: e.EMAIL_TRANSPORT, reason: "EMAIL_LIVE_SEND is not enabled — messages are simulated in the outbox." };
   if (e.EMAIL_TRANSPORT === "outbox") return { live: false, transport: "outbox", reason: "EMAIL_TRANSPORT=outbox — no live transport selected." };
   if (e.EMAIL_TRANSPORT === "smtp" && !e.SMTP_HOST) return { live: false, transport: "smtp", reason: "SMTP_HOST is not configured." };
   if (e.EMAIL_TRANSPORT === "graph" && !(e.GRAPH_TENANT_ID && e.GRAPH_CLIENT_ID && e.GRAPH_CLIENT_SECRET && e.GRAPH_SENDER)) {
@@ -70,7 +71,7 @@ function graphTransport(): MailTransport {
             subject: msg.subject,
             body: { contentType: "HTML", content: msg.html },
             toRecipients: msg.to.split(",").map((a) => ({ emailAddress: { address: a.trim() } })),
-          ...(msg.replyTo ? { replyTo: [{ emailAddress: { address: msg.replyTo } }] } : {}),
+            ...(msg.replyTo ? { replyTo: [{ emailAddress: { address: msg.replyTo } }] } : {}),
           },
           saveToSentItems: true,
         }),

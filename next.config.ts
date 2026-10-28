@@ -26,7 +26,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["better-sqlite3"],
+  // PGlite (local dev) loads its WASM/data files from node_modules at runtime.
+  serverExternalPackages: ["@electric-sql/pglite"],
   poweredByHeader: false,
   // The floating dev indicator sits over the sidebar's sign-out control.
   devIndicators: false,

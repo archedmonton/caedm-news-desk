@@ -38,7 +38,7 @@ export default async function FollowUpsPage({ searchParams }: { searchParams: Pr
   const user = await requireUser();
   const canReview = can(user.role, "manage_follow_ups");
   const view = param(await searchParams, "view");
-  const rows = listFollowUps({ view: view === "mine" ? "" : view, assignee: view === "mine" ? user.id : undefined });
+  const rows = await listFollowUps({ view: view === "mine" ? "" : view, assignee: view === "mine" ? user.id : undefined });
   const now = Date.now();
 
   return (
@@ -66,7 +66,11 @@ export default async function FollowUpsPage({ searchParams }: { searchParams: Pr
             {rows.map((r) => {
               const overdue = r.dueAt != null && r.dueAt < now && !r.completedAt;
               return (
-                <li key={r.followUpId} className="flex flex-col gap-2 px-5 py-4 md:flex-row md:items-start md:justify-between" data-testid="follow-up-row">
+                <li
+                  key={r.followUpId}
+                  className="flex flex-col gap-2 px-5 py-4 md:flex-row md:items-start md:justify-between"
+                  data-testid="follow-up-row"
+                >
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <PriorityBadge priority={r.priority} compact />
@@ -88,14 +92,14 @@ export default async function FollowUpsPage({ searchParams }: { searchParams: Pr
                     ) : null}
                   </div>
                   {canReview ? (
-                  <div className="flex shrink-0 flex-wrap gap-1">
-                    {r.reviewStatus === "covered" || r.reviewStatus === "archived" ? (
-                      <QuickStatus storyId={r.storyId} status="reviewing" label="Reopen" />
-                    ) : (
-                      <QuickStatus storyId={r.storyId} status="covered" label="Mark covered" />
-                    )}
-                    {r.reviewStatus !== "archived" ? <QuickStatus storyId={r.storyId} status="archived" label="Archive" /> : null}
-                  </div>
+                    <div className="flex shrink-0 flex-wrap gap-1">
+                      {r.reviewStatus === "covered" || r.reviewStatus === "archived" ? (
+                        <QuickStatus storyId={r.storyId} status="reviewing" label="Reopen" />
+                      ) : (
+                        <QuickStatus storyId={r.storyId} status="covered" label="Mark covered" />
+                      )}
+                      {r.reviewStatus !== "archived" ? <QuickStatus storyId={r.storyId} status="archived" label="Archive" /> : null}
+                    </div>
                   ) : null}
                 </li>
               );

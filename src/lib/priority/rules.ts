@@ -123,17 +123,7 @@ export const DEFAULT_PRIORITY_RULES: PriorityRules = {
     "papal resignation",
     "habemus papam",
   ],
-  educationTerms: [
-    "school*",
-    "student*",
-    "education",
-    "curriculum",
-    "classroom*",
-    "teacher*",
-    "trustee*",
-    "kindergarten",
-    "graduat*",
-  ],
+  educationTerms: ["school*", "student*", "education", "curriculum", "classroom*", "teacher*", "trustee*", "kindergarten", "graduat*"],
   healthTerms: [
     "hospital*",
     "health",

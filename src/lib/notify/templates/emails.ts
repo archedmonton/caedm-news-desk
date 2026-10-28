@@ -66,7 +66,10 @@ export function renderDigest(opts: {
   const sectionsHtml = nonEmpty.length
     ? nonEmpty
         .map(
-          (sec, i) => `<h2 style="font-size:15px;text-transform:uppercase;letter-spacing:.05em;color:${COLORS.gold};margin:24px 0 4px">${i + 1}. ${esc(sec.title)}</h2>
+          (
+            sec,
+            i,
+          ) => `<h2 style="font-size:15px;text-transform:uppercase;letter-spacing:.05em;color:${COLORS.gold};margin:24px 0 4px">${i + 1}. ${esc(sec.title)}</h2>
 ${sec.note ? `<div style="font-size:12px;color:${COLORS.muted}">${esc(sec.note)}</div>` : ""}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${sec.stories.map((s) => storyHtml(s, sec.key === "top", opts.appUrl)).join("")}</table>
 ${sec.more ? `<div style="font-size:12px;color:${COLORS.muted};margin-top:6px">+ ${sec.more} more in the <a href="${safeHref(`${opts.appUrl}/news`)}" style="color:${COLORS.accent}">News Feed</a></div>` : ""}`,
@@ -94,12 +97,22 @@ ${
   const text = [
     subject,
     "",
-    opts.totalStories ? `${opts.totalStories} new stories since ${formatDateTime(opts.windowStart)}.` : "No new stories from monitored sources since the last briefing.",
-    ...nonEmpty.flatMap((sec, i) => ["", `${i + 1}. ${sec.title.toUpperCase()}`, ...sec.stories.map(storyText), sec.more ? `  + ${sec.more} more in the News Feed` : ""]),
+    opts.totalStories
+      ? `${opts.totalStories} new stories since ${formatDateTime(opts.windowStart)}.`
+      : "No new stories from monitored sources since the last briefing.",
+    ...nonEmpty.flatMap((sec, i) => [
+      "",
+      `${i + 1}. ${sec.title.toUpperCase()}`,
+      ...sec.stories.map(storyText),
+      sec.more ? `  + ${sec.more} more in the News Feed` : "",
+    ]),
     "",
     "OUTSTANDING FOLLOW-UPS",
     ...(opts.followUps.length
-      ? opts.followUps.map((f) => `- ${f.title} — ${f.assignee ?? "Unassigned"}, ${f.status}${f.dueAt ? `, due ${formatDateTime(f.dueAt)}` : ""}${f.overdue ? " (OVERDUE)" : ""}`)
+      ? opts.followUps.map(
+          (f) =>
+            `- ${f.title} — ${f.assignee ?? "Unassigned"}, ${f.status}${f.dueAt ? `, due ${formatDateTime(f.dueAt)}` : ""}${f.overdue ? " (OVERDUE)" : ""}`,
+        )
       : ["No outstanding follow-ups."]),
     "",
     `CAEDM News Desk: ${opts.appUrl}`,
@@ -124,7 +137,9 @@ export function renderAlert(opts: { now: number; stories: EmailStory[]; appUrl: 
     .map(
       (s) =>
         storyHtml(s, true, opts.appUrl) +
-        (s.priorityReason ? `<tr><td style="font-size:12px;color:${COLORS.muted};padding:0 0 10px">Why: ${esc(s.priorityReason.split("; ").slice(-2).join("; "))}</td></tr>` : ""),
+        (s.priorityReason
+          ? `<tr><td style="font-size:12px;color:${COLORS.muted};padding:0 0 10px">Why: ${esc(s.priorityReason.split("; ").slice(-2).join("; "))}</td></tr>`
+          : ""),
     )
     .join("")}</table>`;
   const html = emailLayout({
@@ -136,7 +151,9 @@ export function renderAlert(opts: { now: number; stories: EmailStory[]; appUrl: 
   const text = [
     subject,
     "",
-    anySensitive ? "INTERNAL REVIEW: sensitive or unverified claims are reported as published by the named source, not as established facts. Verify before responding.\n" : "",
+    anySensitive
+      ? "INTERNAL REVIEW: sensitive or unverified claims are reported as published by the named source, not as established facts. Verify before responding.\n"
+      : "",
     ...opts.stories.map(storyText),
     "",
     `CAEDM News Desk: ${opts.appUrl}`,
@@ -159,7 +176,10 @@ export function renderInvite(opts: { inviteUrl: string; role: string; invitedBy:
 
 function detailRows(rows: [string, string][]) {
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0;font-size:14px;line-height:1.5">${rows
-    .map(([k, v]) => `<tr><td style="padding:4px 16px 4px 0;color:${COLORS.muted};vertical-align:top;white-space:nowrap">${esc(k)}</td><td style="padding:4px 0;white-space:pre-wrap">${esc(v)}</td></tr>`)
+    .map(
+      ([k, v]) =>
+        `<tr><td style="padding:4px 16px 4px 0;color:${COLORS.muted};vertical-align:top;white-space:nowrap">${esc(k)}</td><td style="padding:4px 0;white-space:pre-wrap">${esc(v)}</td></tr>`,
+    )
     .join("")}</table>`;
 }
 

@@ -5,11 +5,35 @@ import { DEFAULT_PRIORITY_RULES as R } from "@/lib/priority/rules";
 const NOW = Date.parse("2026-10-28T18:00:00Z");
 const hoursAgo = (h: number) => NOW - h * 3600_000;
 
-const ECSD: SourceProfile = { name: "Edmonton Catholic Schools", orgType: "catholic_partner", region: "edmonton", importance: 5, defaultCategory: "catholic_education" };
-const COVENANT: SourceProfile = { name: "Covenant Health", orgType: "catholic_partner", region: "alberta", importance: 4, defaultCategory: "healthcare" };
+const ECSD: SourceProfile = {
+  name: "Edmonton Catholic Schools",
+  orgType: "catholic_partner",
+  region: "edmonton",
+  importance: 5,
+  defaultCategory: "catholic_education",
+};
+const COVENANT: SourceProfile = {
+  name: "Covenant Health",
+  orgType: "catholic_partner",
+  region: "alberta",
+  importance: 4,
+  defaultCategory: "healthcare",
+};
 const VATICAN: SourceProfile = { name: "Vatican News", orgType: "vatican", region: "international", importance: 3, defaultCategory: "vatican" };
-const GOA: SourceProfile = { name: "Government of Alberta", orgType: "government", region: "alberta", importance: 4, defaultCategory: "government_policy" };
-const CAEDM: SourceProfile = { name: "Catholic Archdiocese of Edmonton", orgType: "archdiocese", region: "edmonton", importance: 5, defaultCategory: "archdiocese" };
+const GOA: SourceProfile = {
+  name: "Government of Alberta",
+  orgType: "government",
+  region: "alberta",
+  importance: 4,
+  defaultCategory: "government_policy",
+};
+const CAEDM: SourceProfile = {
+  name: "Catholic Archdiocese of Edmonton",
+  orgType: "archdiocese",
+  region: "edmonton",
+  importance: 5,
+  defaultCategory: "archdiocese",
+};
 const MANUAL: SourceProfile = { name: "Manual submission", orgType: "manual", region: "edmonton", importance: 2, defaultCategory: "other" };
 
 const c = (title: string, source: SourceProfile, description = "", publishedAt = hoursAgo(2)) =>
@@ -38,10 +62,7 @@ describe("priority classification", () => {
   });
 
   it("P1: local Catholic institutional development", () => {
-    const r = c(
-      "Misericordia and Grey Nuns Community Hospitals install weapons detection systems to enhance safety",
-      COVENANT,
-    );
+    const r = c("Misericordia and Grey Nuns Community Hospitals install weapons detection systems to enhance safety", COVENANT);
     expect(r.priority).toBe("P1");
     expect(r.geoRelevance).toBe("edmonton");
   });

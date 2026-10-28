@@ -1,3 +1,4 @@
+import { first } from "@/lib/db/client";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { sourceCheckLogs, sources, stories, storySources } from "@/lib/db/schema";
@@ -12,7 +13,9 @@ const NOW = Date.parse("2026-10-28T18:00:00Z");
 
 describe("URL & text normalization", () => {
   it("normalizes URLs for dedupe while keeping meaningful params", () => {
-    expect(normalizeUrl("https://WWW.Alberta.ca/announcements.cfm?xID=ABC&utm_source=x#top")).toBe("https://www.alberta.ca/announcements.cfm?xID=ABC");
+    expect(normalizeUrl("https://WWW.Alberta.ca/announcements.cfm?xID=ABC&utm_source=x#top")).toBe(
+      "https://www.alberta.ca/announcements.cfm?xID=ABC",
+    );
     expect(normalizeUrl("https://example.org/a/b/?b=2&a=1")).toBe("https://example.org/a/b?a=1&b=2");
     expect(normalizeUrl("/news/x", "https://www.ecsd.net/news")).toBe("https://www.ecsd.net/news/x");
   });
@@ -59,7 +62,10 @@ describe("source parsers", () => {
   });
   it("parses the Covenant Health newsroom", () => {
     const items = parseCovenantNewsroom(COVENANT_HTML, "https://covenanthealth.ca/news-and-events/news");
-    expect(items.map((i) => i.url)).toEqual(["https://covenanthealth.ca/news-and-events/news/test-safety", "https://covenanthealth.ca/news-and-events/news/test-meet"]);
+    expect(items.map((i) => i.url)).toEqual([
+      "https://covenanthealth.ca/news-and-events/news/test-safety",
+      "https://covenanthealth.ca/news-and-events/news/test-meet",
+    ]);
     expect(items[0].categories).toEqual(["Safety"]);
     expect(items[0].description).toMatch(/Fixture lede/);
   });
@@ -77,9 +83,9 @@ describe("source parsers", () => {
 });
 
 describe("collector", () => {
-  let db: ReturnType<typeof testDb>;
-  beforeEach(() => {
-    db = testDb();
+  let db: Awaited<ReturnType<typeof testDb>>;
+  beforeEach(async () => {
+    db = await testDb();
   });
 
   const routes = {
@@ -93,26 +99,28 @@ describe("collector", () => {
 
   it("stores stories, prevents duplicates and records health", async () => {
     const { fetcher } = fakeFetcher(routes);
-    const vat = sourceBySlug(db, "vatican-news");
+    const vat = await sourceBySlug(db, "vatican-news");
     const first = await checkSource(vat.id, { db, fetcher, now: NOW });
     expect(first).toMatchObject({ status: "success", itemsFound: 2, itemsNew: 2 });
     const second = await checkSource(vat.id, { db, fetcher, now: NOW + 60_000 });
     expect(second.itemsNew).toBe(0);
-    expect(db.select().from(stories).all()).toHaveLength(2);
-    const after = sourceBySlug(db, "vatican-news");
+    expect(await db.select().from(stories)).toHaveLength(2);
+    const after = await sourceBySlug(db, "vatican-news");
     expect(after.consecutiveFailures).toBe(0);
     expect(after.lastSuccessAt).not.toBeNull();
-    expect(after.nextCheckAt).toBe(NOW + 60_000 + 30 * 60_000);
-    expect(db.select().from(sourceCheckLogs).all()).toHaveLength(2);
+    expect(after.nextCheckAt).toBe(NOW + 60_000 + 15 * 60_000);
+    expect(await db.select().from(sourceCheckLogs)).toHaveLength(2);
   });
 
   it("marks the first (baseline) sync as alert-suppressed but not later items", async () => {
-    const vat = sourceBySlug(db, "vatican-news");
+    const vat = await sourceBySlug(db, "vatican-news");
     await checkSource(vat.id, { db, fetcher: fakeFetcher(routes).fetcher, now: NOW });
-    expect(db.select().from(stories).all().every((s) => s.alertSuppressed)).toBe(true);
+    expect((await db.select().from(stories)).every((s) => s.alertSuppressed)).toBe(true);
     const later = VATICAN_RSS.replace("test-peace.html", "test-new.html").replace("Regional conference", "Another item");
     await checkSource(vat.id, { db, fetcher: fakeFetcher({ "https://www.vaticannews.va/en.rss.xml": later }).fetcher, now: NOW + 3600_000 });
-    const fresh = db.select().from(stories).where(eq(stories.canonicalUrl, "https://www.vaticannews.va/en/world/news/2026-10/test-new.html")).get()!;
+    const fresh = (await first(
+      db.select().from(stories).where(eq(stories.canonicalUrl, "https://www.vaticannews.va/en/world/news/2026-10/test-new.html")),
+    ))!;
     expect(fresh.alertSuppressed).toBe(false);
   });
 
@@ -125,24 +133,24 @@ describe("collector", () => {
     expect(bySlug["vatican-news"].status).toBe("success");
     expect(bySlug["covenant-health"].status).toBe("success");
     expect(bySlug["ecsd"].status).toBe("success");
-    let ab = sourceBySlug(db, "alberta-news");
+    let ab = await sourceBySlug(db, "alberta-news");
     expect(ab.consecutiveFailures).toBe(1);
-    expect(ab.nextCheckAt).toBe(NOW + 60 * 60_000); // 30 min × 2^1
+    expect(ab.nextCheckAt).toBe(NOW + 30 * 60_000); // 15 min × 2^1
     expect(ab.lastError).toMatch(/ECONNREFUSED/);
     await checkSource(ab.id, { db, fetcher, now: NOW + 2 * 3600_000 });
-    ab = sourceBySlug(db, "alberta-news");
+    ab = await sourceBySlug(db, "alberta-news");
     expect(ab.consecutiveFailures).toBe(2);
-    expect(ab.nextCheckAt).toBe(NOW + 2 * 3600_000 + 120 * 60_000);
+    expect(ab.nextCheckAt).toBe(NOW + 2 * 3600_000 + 60 * 60_000); // 15 min × 2^2
     // Recovery resets failures.
     await checkSource(ab.id, { db, fetcher: fakeFetcher(routes).fetcher, now: NOW + 5 * 3600_000 });
-    expect(sourceBySlug(db, "alberta-news").consecutiveFailures).toBe(0);
+    expect((await sourceBySlug(db, "alberta-news")).consecutiveFailures).toBe(0);
   });
 
   it("enriches ECSD items from article metadata and does not refetch known items", async () => {
     const { fetcher, calls } = fakeFetcher(routes);
-    const ecsd = sourceBySlug(db, "ecsd");
+    const ecsd = await sourceBySlug(db, "ecsd");
     await checkSource(ecsd.id, { db, fetcher, now: NOW });
-    const stored = db.select().from(stories).where(eq(stories.sourceId, ecsd.id)).all();
+    const stored = await db.select().from(stories).where(eq(stories.sourceId, ecsd.id));
     expect(stored).toHaveLength(2);
     expect(stored.every((s) => s.publishedAt && s.descriptionSource === "page_meta")).toBe(true);
     calls.length = 0;
@@ -151,35 +159,48 @@ describe("collector", () => {
   });
 
   it("only checks enabled, verified sources", async () => {
-    db.update(sources).set({ enabled: false }).where(eq(sources.slug, "vatican-news")).run();
+    await db.update(sources).set({ enabled: false }).where(eq(sources.slug, "vatican-news"));
     const { calls } = fakeFetcher(routes);
     const res = await runDueChecks({ db, fetcher: fakeFetcher(routes).fetcher, now: NOW });
     expect(res.map((r) => r.slug).sort()).toEqual(["alberta-news", "covenant-health", "ecsd"]);
     expect(calls).toEqual([]);
-    const unverified = sourceBySlug(db, "cbc-edmonton");
+    const unverified = await sourceBySlug(db, "cbc-edmonton");
     expect((await checkSource(unverified.id, { db, fetcher: fakeFetcher(routes).fetcher, now: NOW })).error).toMatch(/not verified/);
   });
 
-  it("records the same story reported by a second source and groups related headlines", () => {
-    const vat = sourceBySlug(db, "vatican-news");
-    const caedm = sourceBySlug(db, "caedm");
-    const item = { title: "Pope Leo visits Edmonton parishes", url: "https://example.org/a", publishedAt: NOW, updatedAt: null, description: null, descriptionSource: "none" as const, categories: [] };
+  it("records the same story reported by a second source and groups related headlines", async () => {
+    const vat = await sourceBySlug(db, "vatican-news");
+    const caedm = await sourceBySlug(db, "caedm");
+    const item = {
+      title: "Pope Leo visits Edmonton parishes",
+      url: "https://example.org/a",
+      publishedAt: NOW,
+      updatedAt: null,
+      description: null,
+      descriptionSource: "none" as const,
+      categories: [],
+    };
     const opts = { now: NOW, rules: DEFAULT_PRIORITY_RULES, baseline: false };
-    const id = upsertStory(db, vat, item, opts)!;
-    expect(upsertStory(db, caedm, item, opts)).toBeNull();
-    expect(db.select().from(storySources).where(eq(storySources.storyId, id)).all()).toHaveLength(2);
-    const relatedId = upsertStory(db, caedm, { ...item, url: "https://example.org/b", title: "Edmonton parishes: Pope Leo visits" }, opts)!;
-    const [a, b] = [id, relatedId].map((x) => db.select().from(stories).where(eq(stories.id, x)).get()!);
+    const id = (await upsertStory(db, vat, item, opts))!;
+    expect(await upsertStory(db, caedm, item, opts)).toBeNull();
+    expect(await db.select().from(storySources).where(eq(storySources.storyId, id))).toHaveLength(2);
+    const relatedId = (await upsertStory(db, caedm, { ...item, url: "https://example.org/b", title: "Edmonton parishes: Pope Leo visits" }, opts))!;
+    const [a, b] = await Promise.all([id, relatedId].map(async (x) => (await first(db.select().from(stories).where(eq(stories.id, x))))!));
     expect(a.groupKey).toBe(b.groupKey);
   });
 
   it("accepts manual links as unverified, requiring a headline when the page can't be read", async () => {
     const blocked = fakeFetcher({}).fetcher;
     await expect(submitManualLink({ url: "https://example.org/x" }, { db, fetcher: blocked, now: NOW })).rejects.toThrow(/headline/);
-    const r = await submitManualLink({ url: "https://example.org/x", title: "Parish hall closure in Edmonton", description: "Staff summary." }, { db, fetcher: blocked, now: NOW });
-    const s = db.select().from(stories).where(eq(stories.id, r.storyId!)).get()!;
+    const r = await submitManualLink(
+      { url: "https://example.org/x", title: "Parish hall closure in Edmonton", description: "Staff summary." },
+      { db, fetcher: blocked, now: NOW },
+    );
+    const s = (await first(db.select().from(stories).where(eq(stories.id, r.storyId!))))!;
     expect(s.verificationStatus).toBe("unverified");
     expect(s.descriptionSource).toBe("staff");
-    expect((await submitManualLink({ url: "https://example.org/x?utm_source=a", title: "dup" }, { db, fetcher: blocked, now: NOW })).duplicate).toBe(true);
+    expect((await submitManualLink({ url: "https://example.org/x?utm_source=a", title: "dup" }, { db, fetcher: blocked, now: NOW })).duplicate).toBe(
+      true,
+    );
   });
 });

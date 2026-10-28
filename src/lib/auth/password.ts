@@ -1,6 +1,9 @@
 import crypto from "node:crypto";
 
-const N = 16384, R = 8, P = 1, KEYLEN = 64;
+const N = 16384,
+  R = 8,
+  P = 1,
+  KEYLEN = 64;
 export const MIN_PASSWORD_LENGTH = 12;
 
 function scrypt(password: string, salt: Buffer, n: number, r: number, p: number): Promise<Buffer> {

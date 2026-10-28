@@ -80,8 +80,11 @@ enabled** until someone has:
 | Edmonton Public Schools, CCCB, Canadian Catholic News, Holy See Press Office | Need feed verification. |
 | Catholic school divisions (Greater St. Albert, Elk Island, Evergreen, Living Waters, East Central Alberta, St. Thomas Aquinas, Centre-Nord), GRACE | From the CAEDM *Schools & Colleges* page (`caedm.ca/offices/schools-colleges/`). |
 
-To add a source:
-1. Verify its feed.
-2. Set `feedUrl`, `adapter` (usually `rss`) and `verified: true` in the registry.
-3. Run `npm run db:setup`. This is idempotent and keeps admin toggles.
-4. Enable the source on the Sources page.
+### Adding sources (administrators, in the app)
+
+1. Go to **Sources → Add source**, or **Set up** on an expansion entry.
+2. Enter the website and use **Find feed** (it only reads feeds the site advertises).
+3. Use **Test**, then save. Saving re-verifies the feed (robots.txt, SSRF guard, items parse) and records
+   who verified it and when.
+4. Only RSS/Atom feeds can be added in the app. Organizations without a feed need a code-reviewed newsroom
+   adapter; ask the developer. In the meantime, use **Submit a link** for individual stories.

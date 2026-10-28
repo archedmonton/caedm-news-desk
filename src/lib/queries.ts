@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gte, inArray, isNull, ne, or, sql, type SQL } from "drizzle-orm";
-import { getDb } from "./db/client";
+import { first, getDb } from "./db/client";
 import {
   accessRequests,
   auditLogs,
@@ -18,7 +18,7 @@ import {
   type Priority,
   type ReviewStatus,
 } from "./db/schema";
-import { getState } from "./settings";
+import { getTickState } from "./tick";
 import { edmontonDayRange } from "./time";
 
 export type StoryFilters = {
@@ -73,12 +73,12 @@ export type StoryListItem = {
 
 const effectiveTime = sql`coalesce(${stories.publishedAt}, ${stories.firstDetectedAt})`;
 
-export function listStories(f: StoryFilters) {
+export async function listStories(f: StoryFilters) {
   const db = getDb();
   const where: SQL[] = [];
   if (f.q?.trim()) {
     const term = `%${f.q.trim().replace(/[%_]/g, "\\$&")}%`;
-    where.push(or(sql`${stories.title} like ${term} escape '\\'`, sql`${stories.description} like ${term} escape '\\'`)!);
+    where.push(or(sql`${stories.title} ilike ${term} escape '\\'`, sql`${stories.description} ilike ${term} escape '\\'`)!);
   }
   if (f.source) where.push(eq(sources.slug, f.source));
   if (f.priority && (PRIORITIES as readonly string[]).includes(f.priority)) where.push(eq(stories.priority, f.priority as Priority));
@@ -103,103 +103,110 @@ export function listStories(f: StoryFilters) {
 
   const page = Math.max(1, f.page ?? 1);
   const cond = where.length ? and(...where) : undefined;
-  const total = db
-    .select({ n: sql<number>`count(*)` })
-    .from(stories)
-    .innerJoin(sources, eq(sources.id, stories.sourceId))
-    .where(cond)
-    .get()!.n;
-  const items = db
+  const total = (await first(
+    db
+      .select({ n: sql<number>`count(*)`.mapWith(Number) })
+      .from(stories)
+      .innerJoin(sources, eq(sources.id, stories.sourceId))
+      .where(cond),
+  ))!.n;
+  const items = (await db
     .select(storyCols)
     .from(stories)
     .innerJoin(sources, eq(sources.id, stories.sourceId))
     .where(cond)
     .orderBy(...order)
     .limit(PAGE_SIZE)
-    .offset((page - 1) * PAGE_SIZE)
-    .all() as StoryListItem[];
+    .offset((page - 1) * PAGE_SIZE)) as StoryListItem[];
   return { items, total, page, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
 }
 
-export function getStoryDetail(id: number) {
+export async function getStoryDetail(id: number) {
   const db = getDb();
-  const story = db
-    .select({ s: stories, sourceName: sources.name, sourceSlug: sources.slug, sourceWebsite: sources.websiteUrl, orgType: sources.orgType })
-    .from(stories)
-    .innerJoin(sources, eq(sources.id, stories.sourceId))
-    .where(eq(stories.id, id))
-    .get();
+  const story = await first(
+    db
+      .select({ s: stories, sourceName: sources.name, sourceSlug: sources.slug, sourceWebsite: sources.websiteUrl, orgType: sources.orgType })
+      .from(stories)
+      .innerJoin(sources, eq(sources.id, stories.sourceId))
+      .where(eq(stories.id, id)),
+  );
   if (!story) return null;
-  const reportedBy = db
+  const reportedBy = await db
     .select({ name: sources.name, url: storySources.url, detectedAt: storySources.detectedAt })
     .from(storySources)
     .innerJoin(sources, eq(sources.id, storySources.sourceId))
-    .where(eq(storySources.storyId, id))
-    .all();
-  const related = db
+    .where(eq(storySources.storyId, id));
+  const related = (await db
     .select(storyCols)
     .from(stories)
     .innerJoin(sources, eq(sources.id, stories.sourceId))
     .where(and(eq(stories.groupKey, story.s.groupKey), ne(stories.id, id)))
     .orderBy(desc(effectiveTime))
-    .limit(10)
-    .all() as StoryListItem[];
-  const history = db
+    .limit(10)) as StoryListItem[];
+  const history = await db
     .select({ h: storyPriorityHistory, by: users.name, byEmail: users.email })
     .from(storyPriorityHistory)
     .leftJoin(users, eq(users.id, storyPriorityHistory.changedBy))
     .where(eq(storyPriorityHistory.storyId, id))
-    .orderBy(desc(storyPriorityHistory.changedAt), desc(storyPriorityHistory.id))
-    .all();
-  const followUp = db
-    .select({ f: followUps, assignee: users.name, assigneeEmail: users.email })
-    .from(followUps)
-    .leftJoin(users, eq(users.id, followUps.assigneeId))
-    .where(eq(followUps.storyId, id))
-    .get();
+    .orderBy(desc(storyPriorityHistory.changedAt), desc(storyPriorityHistory.id));
+  const followUp = await first(
+    db
+      .select({ f: followUps, assignee: users.name, assigneeEmail: users.email })
+      .from(followUps)
+      .leftJoin(users, eq(users.id, followUps.assigneeId))
+      .where(eq(followUps.storyId, id)),
+  );
   const notes = followUp
-    ? db
+    ? await db
         .select({ n: followUpNotes, author: users.name, authorEmail: users.email })
         .from(followUpNotes)
         .leftJoin(users, eq(users.id, followUpNotes.authorId))
         .where(eq(followUpNotes.followUpId, followUp.f.id))
         .orderBy(desc(followUpNotes.createdAt), desc(followUpNotes.id))
-        .all()
     : [];
-  const activity = db
+  const activity = await db
     .select({ a: auditLogs, by: users.name, byEmail: users.email })
     .from(auditLogs)
     .leftJoin(users, eq(users.id, auditLogs.userId))
     .where(and(eq(auditLogs.entityType, "story"), eq(auditLogs.entityId, String(id))))
     .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
-    .limit(30)
-    .all();
-  const sentIn = db
-    .select({ id: notifications.id, kind: notifications.kind, subject: notifications.subject, status: notifications.status, createdAt: notifications.createdAt })
+    .limit(30);
+  const sentIn = await db
+    .select({
+      id: notifications.id,
+      kind: notifications.kind,
+      subject: notifications.subject,
+      status: notifications.status,
+      createdAt: notifications.createdAt,
+    })
     .from(notificationStories)
     .innerJoin(notifications, eq(notifications.id, notificationStories.notificationId))
-    .where(eq(notificationStories.storyId, id))
-    .all();
+    .where(eq(notificationStories.storyId, id));
   return { ...story, reportedBy, related, history, followUp, notes, activity, sentIn };
 }
 
-export function listActiveStaff() {
-  return getDb().select({ id: users.id, name: users.name, email: users.email }).from(users).where(eq(users.status, "active")).orderBy(asc(users.name)).all();
+export async function listActiveStaff() {
+  return await getDb()
+    .select({ id: users.id, name: users.name, email: users.email })
+    .from(users)
+    .where(eq(users.status, "active"))
+    .orderBy(asc(users.name));
 }
 
-export function listSourceOptions() {
-  return getDb().select({ slug: sources.slug, name: sources.name }).from(sources).orderBy(asc(sources.name)).all();
+export async function listSourceOptions() {
+  return await getDb().select({ slug: sources.slug, name: sources.name }).from(sources).orderBy(asc(sources.name));
 }
 
-export function listFollowUps(f: { view?: string; assignee?: number }) {
+export async function listFollowUps(f: { view?: string; assignee?: number }) {
   const db = getDb();
-  const statuses: ReviewStatus[] =
-    f.view === "covered" ? ["covered"] : f.view === "archived" ? ["archived"] : ["new", "reviewing", "assigned"];
+  const statuses: ReviewStatus[] = f.view === "covered" ? ["covered"] : f.view === "archived" ? ["archived"] : ["new", "reviewing", "assigned"];
   const where: SQL[] = [inArray(stories.reviewStatus, statuses)];
   if (f.assignee) where.push(eq(followUps.assigneeId, f.assignee));
-  const lastNote = sql<string | null>`(select body from follow_up_notes n where n.follow_up_id = ${followUps.id} order by n.created_at desc, n.id desc limit 1)`;
+  const lastNote = sql<
+    string | null
+  >`(select body from follow_up_notes n where n.follow_up_id = ${followUps.id} order by n.created_at desc, n.id desc limit 1)`;
   const noteCount = sql<number>`(select count(*) from follow_up_notes n where n.follow_up_id = ${followUps.id})`;
-  return db
+  return await db
     .select({
       followUpId: followUps.id,
       storyId: stories.id,
@@ -223,35 +230,34 @@ export function listFollowUps(f: { view?: string; assignee?: number }) {
     .innerJoin(sources, eq(sources.id, stories.sourceId))
     .leftJoin(users, eq(users.id, followUps.assigneeId))
     .where(and(...where))
-    .orderBy(asc(stories.priority), sql`coalesce(${followUps.dueAt}, 9e15)`)
-    .all();
+    .orderBy(asc(stories.priority), sql`coalesce(${followUps.dueAt}, 9e15)`);
 }
 
-export function listSources() {
+export async function listSources() {
   const db = getDb();
-  const all = db.select().from(sources).where(ne(sources.slug, "sample")).orderBy(desc(sources.verified), desc(sources.enabled), asc(sources.name)).all();
-  const counts = new Map(
-    db
-      .select({ sourceId: stories.sourceId, n: sql<number>`count(*)` })
-      .from(stories)
-      .groupBy(stories.sourceId)
-      .all()
-      .map((r) => [r.sourceId, r.n]),
-  );
+  const all = await db
+    .select()
+    .from(sources)
+    .where(ne(sources.slug, "sample"))
+    .orderBy(desc(sources.verified), desc(sources.enabled), asc(sources.name));
+  const perSource = await db
+    .select({ sourceId: stories.sourceId, n: sql<number>`count(*)`.mapWith(Number) })
+    .from(stories)
+    .groupBy(stories.sourceId);
+  const counts = new Map(perSource.map((r) => [r.sourceId, r.n]));
   return all.map((s) => ({ ...s, storyCount: counts.get(s.id) ?? 0 }));
 }
 
-export function recentCheckLogs(limit = 25) {
-  return getDb()
+export async function recentCheckLogs(limit = 25) {
+  return await getDb()
     .select({ l: sourceCheckLogs, name: sources.name })
     .from(sourceCheckLogs)
     .innerJoin(sources, eq(sources.id, sourceCheckLogs.sourceId))
     .orderBy(desc(sourceCheckLogs.startedAt), desc(sourceCheckLogs.id))
-    .limit(limit)
-    .all();
+    .limit(limit);
 }
 
-export function listNotifications(kind?: string, limit = 100) {
+export async function listNotifications(kind?: string, limit = 100) {
   const db = getDb();
   const cols = {
     id: notifications.id,
@@ -266,92 +272,99 @@ export function listNotifications(kind?: string, limit = 100) {
     sentAt: notifications.sentAt,
     nextAttemptAt: notifications.nextAttemptAt,
   };
-  return db
+  return await db
     .select(cols)
     .from(notifications)
     .where(kind ? eq(notifications.kind, kind as "digest") : undefined)
     .orderBy(desc(notifications.createdAt), desc(notifications.id))
-    .limit(limit)
-    .all();
+    .limit(limit);
 }
 
-export function getNotification(id: number) {
+export async function getNotification(id: number) {
   const db = getDb();
-  const n = db.select().from(notifications).where(eq(notifications.id, id)).get();
+  const n = await first(db.select().from(notifications).where(eq(notifications.id, id)));
   if (!n) return null;
-  const linked = db
+  const linked = await db
     .select({ id: stories.id, title: stories.title, priority: stories.priority })
     .from(notificationStories)
     .innerJoin(stories, eq(stories.id, notificationStories.storyId))
-    .where(eq(notificationStories.notificationId, id))
-    .all();
+    .where(eq(notificationStories.notificationId, id));
   return { ...n, linked };
 }
 
-export function listStaff() {
-  return getDb().select().from(users).orderBy(asc(users.status), asc(users.email)).all();
+export async function listStaff() {
+  return await getDb().select().from(users).orderBy(asc(users.status), asc(users.email));
 }
 
-export function recentAudit(limit = 40) {
-  return getDb()
+export async function recentAudit(limit = 40) {
+  return await getDb()
     .select({ a: auditLogs, by: users.name, byEmail: users.email })
     .from(auditLogs)
     .leftJoin(users, eq(users.id, auditLogs.userId))
     .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
-    .limit(limit)
-    .all();
+    .limit(limit);
 }
 
-export function getOverview(now = Date.now()) {
+export async function getOverview(now = Date.now()) {
   const db = getDb();
   const day = now - 24 * 3600_000;
-  const count = (cond: SQL | undefined) => db.select({ n: sql<number>`count(*)` }).from(stories).where(cond).get()!.n;
-  const newStories = count(and(gte(stories.firstDetectedAt, day), eq(stories.alertSuppressed, false)));
-  const newTotal24h = count(gte(stories.firstDetectedAt, day));
-  const highOpen = count(and(inArray(stories.priority, ["P0", "P1"]), inArray(stories.reviewStatus, ["new", "reviewing", "assigned"])));
-  const needsReview = count(and(eq(stories.reviewStatus, "new"), or(eq(stories.sensitive, true), eq(stories.verificationStatus, "unverified"))));
-  const unreviewed = count(eq(stories.reviewStatus, "new"));
-  const openFollowUps = db
-    .select({ n: sql<number>`count(*)`, overdue: sql<number>`sum(case when ${followUps.dueAt} < ${now} then 1 else 0 end)` })
-    .from(followUps)
-    .innerJoin(stories, eq(stories.id, followUps.storyId))
-    .where(and(isNull(followUps.completedAt), inArray(stories.reviewStatus, ["reviewing", "assigned"])))
-    .get()!;
-  const highPriority = db
+  const count = async (cond: SQL | undefined) =>
+    (await first(
+      db
+        .select({ n: sql<number>`count(*)`.mapWith(Number) })
+        .from(stories)
+        .where(cond),
+    ))!.n;
+  const newStories = await count(and(gte(stories.firstDetectedAt, day), eq(stories.alertSuppressed, false)));
+  const newTotal24h = await count(gte(stories.firstDetectedAt, day));
+  const highOpen = await count(and(inArray(stories.priority, ["P0", "P1"]), inArray(stories.reviewStatus, ["new", "reviewing", "assigned"])));
+  const needsReview = await count(
+    and(eq(stories.reviewStatus, "new"), or(eq(stories.sensitive, true), eq(stories.verificationStatus, "unverified"))),
+  );
+  const unreviewed = await count(eq(stories.reviewStatus, "new"));
+  const openFollowUps = (await first(
+    db
+      .select({
+        n: sql<number>`count(*)`.mapWith(Number),
+        overdue: sql<number>`sum(case when ${followUps.dueAt} < ${now} then 1 else 0 end)`.mapWith(Number),
+      })
+      .from(followUps)
+      .innerJoin(stories, eq(stories.id, followUps.storyId))
+      .where(and(isNull(followUps.completedAt), inArray(stories.reviewStatus, ["reviewing", "assigned"]))),
+  ))!;
+  const highPriority = (await db
     .select(storyCols)
     .from(stories)
     .innerJoin(sources, eq(sources.id, stories.sourceId))
     .where(and(inArray(stories.priority, ["P0", "P1"]), inArray(stories.reviewStatus, ["new", "reviewing", "assigned"])))
     .orderBy(asc(stories.priority), desc(effectiveTime))
-    .limit(6)
-    .all() as StoryListItem[];
-  const recent = db
+    .limit(6)) as StoryListItem[];
+  const recent = (await db
     .select(storyCols)
     .from(stories)
     .innerJoin(sources, eq(sources.id, stories.sourceId))
     .where(and(inArray(stories.priority, ["P0", "P1", "P2"]), ne(stories.reviewStatus, "archived"), gte(effectiveTime, now - 72 * 3600_000)))
     .orderBy(desc(effectiveTime))
-    .limit(8)
-    .all() as StoryListItem[];
-  const srcs = db.select().from(sources).where(and(eq(sources.verified, true), inArray(sources.method, ["rss", "html"]))).all();
-  const lastDigest = db
+    .limit(8)) as StoryListItem[];
+  const srcs = await db
     .select()
-    .from(notifications)
-    .where(eq(notifications.kind, "digest"))
-    .orderBy(desc(notifications.createdAt))
-    .get();
-  const lastAlert = db
-    .select({ createdAt: notifications.createdAt, status: notifications.status, subject: notifications.subject })
-    .from(notifications)
-    .where(eq(notifications.kind, "alert"))
-    .orderBy(desc(notifications.createdAt))
-    .get();
-  const failedDeliveries = db
-    .select({ n: sql<number>`count(*)` })
-    .from(notifications)
-    .where(and(eq(notifications.status, "failed"), gte(notifications.createdAt, now - 7 * 24 * 3600_000)))
-    .get()!.n;
-  const worker = getState<{ lastTickAt: number; error?: string }>("worker");
+    .from(sources)
+    .where(and(eq(sources.verified, true), inArray(sources.method, ["rss", "html"])));
+  const lastDigest = await first(db.select().from(notifications).where(eq(notifications.kind, "digest")).orderBy(desc(notifications.createdAt)));
+  const lastAlert = await first(
+    db
+      .select({ createdAt: notifications.createdAt, status: notifications.status, subject: notifications.subject })
+      .from(notifications)
+      .where(eq(notifications.kind, "alert"))
+      .orderBy(desc(notifications.createdAt)),
+  );
+  const failedDeliveries = (await first(
+    db
+      .select({ n: sql<number>`count(*)`.mapWith(Number) })
+      .from(notifications)
+      .where(and(eq(notifications.status, "failed"), gte(notifications.createdAt, now - 7 * 24 * 3600_000))),
+  ))!.n;
+  const tick = await getTickState(db);
   return {
     newStories,
     newTotal24h,
@@ -366,24 +379,36 @@ export function getOverview(now = Date.now()) {
     lastDigest,
     lastAlert,
     failedDeliveries,
-    worker,
+    tick,
   };
 }
 
-export function shellCounts() {
+export async function shellCounts() {
   const db = getDb();
-  const followUpsOpen = db
-    .select({ n: sql<number>`count(*)` })
-    .from(followUps)
-    .innerJoin(stories, eq(stories.id, followUps.storyId))
-    .where(and(isNull(followUps.completedAt), inArray(stories.reviewStatus, ["reviewing", "assigned"])))
-    .get()!.n;
-  const outboxFailed = db
-    .select({ n: sql<number>`count(*)` })
-    .from(notifications)
-    .where(and(eq(notifications.status, "failed"), gte(notifications.createdAt, Date.now() - 7 * 24 * 3600_000)))
-    .get()!.n;
-  const accessRequestsPending = db.select({ n: sql<number>`count(*)` }).from(accessRequests).where(eq(accessRequests.status, "pending")).get()!.n;
+  const followUpsOpen = (await first(
+    db
+      .select({ n: sql<number>`count(*)`.mapWith(Number) })
+      .from(followUps)
+      .innerJoin(stories, eq(stories.id, followUps.storyId))
+      .where(and(isNull(followUps.completedAt), inArray(stories.reviewStatus, ["reviewing", "assigned"]))),
+  ))!.n;
+  const outboxFailed = (await first(
+    db
+      .select({ n: sql<number>`count(*)`.mapWith(Number) })
+      .from(notifications)
+      .where(and(eq(notifications.status, "failed"), gte(notifications.createdAt, Date.now() - 7 * 24 * 3600_000))),
+  ))!.n;
+  const accessRequestsPending = (await first(
+    db
+      .select({ n: sql<number>`count(*)`.mapWith(Number) })
+      .from(accessRequests)
+      .where(eq(accessRequests.status, "pending")),
+  ))!.n;
   return { followUps: followUpsOpen, outboxFailed, accessRequests: accessRequestsPending };
 }
 
+/** Highest story id, so the browser can ask the live endpoint what arrived after the page loaded. */
+export async function latestStoryId() {
+  const row = await first(getDb().select({ id: stories.id }).from(stories).orderBy(desc(stories.id)).limit(1));
+  return row?.id ?? 0;
+}

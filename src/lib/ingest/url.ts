@@ -19,9 +19,7 @@ export function sha256(s: string): string {
   return crypto.createHash("sha256").update(s).digest("hex");
 }
 
-const STOP = new Set(
-  "a an the and or of for to in on at by with from as is are was were be this that its it into new about after over".split(" "),
-);
+const STOP = new Set("a an the and or of for to in on at by with from as is are was were be this that its it into new about after over".split(" "));
 
 /** Order-insensitive fingerprint of a headline's significant words. Used for related-story grouping. */
 export function titleFingerprint(title: string): string {
@@ -63,8 +61,25 @@ export function cleanText(input: string | null | undefined, maxLength = 400): st
 }
 
 const NAMED: Record<string, string> = {
-  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“",
-  ndash: "–", mdash: "—", hellip: "…", eacute: "é", egrave: "è", ecirc: "ê", agrave: "à", ccedil: "ç", ocirc: "ô",
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+  rsquo: "’",
+  lsquo: "‘",
+  rdquo: "”",
+  ldquo: "“",
+  ndash: "–",
+  mdash: "—",
+  hellip: "…",
+  eacute: "é",
+  egrave: "è",
+  ecirc: "ê",
+  agrave: "à",
+  ccedil: "ç",
+  ocirc: "ô",
 };
 
 export function decodeEntities(s: string): string {

@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, lt } from "drizzle-orm";
 import { z } from "zod";
-import { getDb, type DB } from "./db/client";
+import { first, getDb, type DB } from "./db/client";
 import { applicationSettings } from "./db/schema";
 import { DEFAULT_PRIORITY_RULES, type PriorityRules } from "./priority/rules";
 import { parseHHMM } from "./time";
@@ -33,9 +33,9 @@ export const settingsSchema = z.object({
 export type AppSettings = z.infer<typeof settingsSchema> & { priorityRules: PriorityRules };
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  checkIntervalMinutes: 30,
+  checkIntervalMinutes: 15,
   digestEnabled: true,
-  digestTime: "07:30",
+  digestTime: "08:00",
   digestRecipient: "communications@caedm.ca",
   digestLookbackHours: 24,
   alertsEnabled: true,
@@ -51,8 +51,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 type Key = keyof AppSettings;
 
-export function getSettings(db: DB = getDb()): AppSettings {
-  const rows = db.select().from(applicationSettings).all();
+export async function getSettings(db: DB = getDb()): Promise<AppSettings> {
+  const rows = await db.select().from(applicationSettings);
   const out: AppSettings = structuredClone(DEFAULT_SETTINGS);
   for (const row of rows) {
     if (row.key in out) {
@@ -66,33 +66,58 @@ export function getSettings(db: DB = getDb()): AppSettings {
   return out;
 }
 
-export function setSettings(values: Partial<AppSettings>, userId: number | null, db: DB = getDb()) {
+export async function setSettings(values: Partial<AppSettings>, userId: number | null, db: DB = getDb()) {
   const updatedAt = Date.now();
-  db.transaction((tx) => {
+  await db.transaction(async (tx) => {
     for (const [key, value] of Object.entries(values) as [Key, unknown][]) {
       if (!(key in DEFAULT_SETTINGS)) continue;
-      const existing = tx.select().from(applicationSettings).where(eq(applicationSettings.key, key)).get();
-      if (existing) {
-        tx.update(applicationSettings)
-          .set({ value, updatedAt, updatedBy: userId })
-          .where(eq(applicationSettings.key, key))
-          .run();
-      } else {
-        tx.insert(applicationSettings).values({ key, value, updatedAt, updatedBy: userId }).run();
-      }
+      await tx
+        .insert(applicationSettings)
+        .values({ key, value, updatedAt, updatedBy: userId })
+        .onConflictDoUpdate({ target: applicationSettings.key, set: { value, updatedAt, updatedBy: userId } });
     }
   });
 }
 
 /** Internal key/value state (worker heartbeat, etc.) stored alongside settings. */
-export function getState<T>(key: string, db: DB = getDb()): T | undefined {
-  const row = db.select().from(applicationSettings).where(eq(applicationSettings.key, `state:${key}`)).get();
+export async function getState<T>(key: string, db: DB = getDb()): Promise<T | undefined> {
+  const row = await first(
+    db
+      .select()
+      .from(applicationSettings)
+      .where(eq(applicationSettings.key, `state:${key}`)),
+  );
   return row?.value as T | undefined;
 }
 
-export function setState(key: string, value: unknown, db: DB = getDb()) {
-  db.insert(applicationSettings)
+export async function setState(key: string, value: unknown, db: DB = getDb()) {
+  await db
+    .insert(applicationSettings)
     .values({ key: `state:${key}`, value, updatedAt: Date.now() })
-    .onConflictDoUpdate({ target: applicationSettings.key, set: { value, updatedAt: Date.now() } })
-    .run();
+    .onConflictDoUpdate({ target: applicationSettings.key, set: { value, updatedAt: Date.now() } });
+}
+
+/**
+ * Atomic lease (e.g. "only one source refresh at a time" across serverless instances). Returns true if this
+ * caller acquired it; the lease expires after `ttlMs` in case the holder crashes.
+ */
+export async function acquireLease(name: string, ttlMs: number, db: DB = getDb(), now = Date.now()): Promise<boolean> {
+  const key = `lease:${name}`;
+  const rows = await db
+    .insert(applicationSettings)
+    .values({ key, value: { acquiredAt: now }, updatedAt: now })
+    .onConflictDoUpdate({
+      target: applicationSettings.key,
+      set: { value: { acquiredAt: now }, updatedAt: now },
+      setWhere: lt(applicationSettings.updatedAt, now - ttlMs),
+    })
+    .returning({ key: applicationSettings.key });
+  return rows.length > 0;
+}
+
+export async function releaseLease(name: string, db: DB = getDb()) {
+  await db
+    .update(applicationSettings)
+    .set({ updatedAt: 0 })
+    .where(eq(applicationSettings.key, `lease:${name}`));
 }

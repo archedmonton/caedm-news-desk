@@ -41,9 +41,9 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
   const kind = param(await searchParams, "kind");
   // Invitations and access requests contain personal details or sign-up links: administrators only.
   const isAdmin = can(user.role, "manage_staff");
-  const rows = listNotifications(kind || undefined).filter((n) => isAdmin || (n.kind !== "invite" && n.kind !== "access_request"));
+  const rows = (await listNotifications(kind || undefined)).filter((n) => isAdmin || (n.kind !== "invite" && n.kind !== "access_request"));
   const mail = liveEmailStatus();
-  const ev = evaluateAlerts();
+  const ev = await evaluateAlerts();
 
   return (
     <>
@@ -69,7 +69,8 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
           <CardHeader title="Alert dry run" description="What the next alert check would do right now. Read-only." />
           <div className="space-y-3 px-5 py-4 text-sm">
             <p className="text-muted">
-              {ev.enabled ? "Alerts enabled" : "Alerts disabled"} · {ev.inWindow ? "inside" : "outside"} alert hours · {ev.sentLastHour} in the last hour, {ev.sentLastDay} in the last 24 h
+              {ev.enabled ? "Alerts enabled" : "Alerts disabled"} · {ev.inWindow ? "inside" : "outside"} alert hours · {ev.sentLastHour} in the last
+              hour, {ev.sentLastDay} in the last 24 h
             </p>
             {ev.blockedReason ? <p className="font-medium text-p1">Blocked: {ev.blockedReason}</p> : null}
             <div>
@@ -111,8 +112,8 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
           <CardHeader title="Morning brief" description="Preview the brief without affecting the scheduled delivery." />
           <div className="space-y-3 px-5 py-4 text-sm">
             <p className="text-muted">
-              The scheduled brief is generated once per Edmonton day by the worker. A preview never marks stories as delivered, so they will still appear in
-              the real brief.
+              The scheduled brief is generated once per Edmonton day by the worker. A preview never marks stories as delivered, so they will still
+              appear in the real brief.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button asChild size="sm">
@@ -173,7 +174,9 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
                     </td>
                     <td className="px-3 py-2.5">
                       <Badge className={STATUS_STYLE[n.status]}>{n.status}</Badge>
-                      {n.status === "failed" && n.nextAttemptAt ? <div className="mt-1 text-xs text-subtle">retry {formatDateTime(n.nextAttemptAt)}</div> : null}
+                      {n.status === "failed" && n.nextAttemptAt ? (
+                        <div className="mt-1 text-xs text-subtle">retry {formatDateTime(n.nextAttemptAt)}</div>
+                      ) : null}
                     </td>
                     <td className="px-5 py-2.5">
                       <span className="tabular-nums">{n.attempts}</span>

@@ -15,10 +15,7 @@ const partsFormatter = new Intl.DateTimeFormat("en-CA", { ...PARTS_OPTS, timeZon
 
 /** Wall-clock parts of an instant in America/Edmonton. */
 export function zonedParts(at: number | Date, tz = TIMEZONE): ZonedParts {
-  const fmt =
-    tz === TIMEZONE
-      ? partsFormatter
-      : new Intl.DateTimeFormat("en-CA", { ...PARTS_OPTS, timeZone: tz });
+  const fmt = tz === TIMEZONE ? partsFormatter : new Intl.DateTimeFormat("en-CA", { ...PARTS_OPTS, timeZone: tz });
   const p = Object.fromEntries(fmt.formatToParts(new Date(at)).map((x) => [x.type, x.value]));
   return {
     year: Number(p.year),
@@ -108,8 +105,7 @@ const dateTimeFmt = new Intl.DateTimeFormat("en-CA", {
 const timeFmt = new Intl.DateTimeFormat("en-CA", { timeZone: TIMEZONE, hour: "numeric", minute: "2-digit" });
 
 export const formatLongDate = (at: number | Date) => dateFmt.format(new Date(at));
-export const formatDateTime = (at: number | Date | null | undefined) =>
-  at == null ? "—" : dateTimeFmt.format(new Date(at)).replace(/\./g, "");
+export const formatDateTime = (at: number | Date | null | undefined) => (at == null ? "—" : dateTimeFmt.format(new Date(at)).replace(/\./g, ""));
 export const formatTime = (at: number | Date) => timeFmt.format(new Date(at)).replace(/\./g, "");
 
 export function formatRelative(at: number | null | undefined, now = Date.now()): string {

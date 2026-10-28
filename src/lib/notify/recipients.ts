@@ -20,23 +20,34 @@ export function joinRecipients(...lists: (string | string[] | null | undefined)[
 
 const active = eq(users.status, "active");
 
-export function digestRecipients(db: DB, teamAddress: string) {
-  const personal = db.select({ email: users.email }).from(users).where(and(active, eq(users.notifyDigest, true))).all();
-  return joinRecipients(teamAddress, personal.map((p) => p.email));
+export async function digestRecipients(db: DB, teamAddress: string) {
+  const personal = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(and(active, eq(users.notifyDigest, true)));
+  return joinRecipients(
+    teamAddress,
+    personal.map((p) => p.email),
+  );
 }
 
 /** Users choosing "p0" only receive alerts that contain at least one P0 story. */
-export function alertRecipients(db: DB, teamAddress: string, containsP0: boolean) {
+export async function alertRecipients(db: DB, teamAddress: string, containsP0: boolean) {
   const prefs = containsP0 ? (["all", "p0"] as const) : (["all"] as const);
-  const personal = db.select({ email: users.email }).from(users).where(and(active, inArray(users.notifyAlerts, [...prefs]))).all();
-  return joinRecipients(teamAddress, personal.map((p) => p.email));
-}
-
-export function accessRequestRecipients(db: DB) {
-  const admins = db
+  const personal = await db
     .select({ email: users.email })
     .from(users)
-    .where(and(active, eq(users.role, "admin"), eq(users.notifyAccessRequests, true)))
-    .all();
+    .where(and(active, inArray(users.notifyAlerts, [...prefs])));
+  return joinRecipients(
+    teamAddress,
+    personal.map((p) => p.email),
+  );
+}
+
+export async function accessRequestRecipients(db: DB) {
+  const admins = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(and(active, eq(users.role, "admin"), eq(users.notifyAccessRequests, true)));
   return joinRecipients(admins.map((a) => a.email));
 }

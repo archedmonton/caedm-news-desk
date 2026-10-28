@@ -67,7 +67,28 @@ are blocked on IT approval, as intended.
    data.
 5. Enable the CAEDM feed, then verify and activate further expansion sources (see `docs/SOURCES.md`).
 
-## Change request 2026-10-28: roles, accounts, help (✅ implemented, not yet committed)
+## Change request 2026-10-28 (2): hosting, 8 AM brief, live updates, admin-managed sources (✅ implemented, NOT committed)
+
+| Item | Status | Verified by |
+|---|---|---|
+| Postgres everywhere (Supabase prod via postgres-js; PGlite local/tests) | ✅ | 85 Vitest on Postgres; live collect; prod-mode run over the network driver |
+| Morning brief at 8:00 AM Edmonton via Vercel Cron (14:00 + 15:00 UTC, DST-safe, once per day) | ✅ | digest DST tests; cron endpoint tests |
+| `/api/cron/tick` secured by `CRON_SECRET` (never open in production) | ✅ | integration + prod-mode test |
+| Real-time dashboard: live refresh while signed in + "new stories" banner | ✅ | e2e (two sessions) + prod-mode test |
+| Admins add / test / edit / delete sources in the app | ✅ | integration + e2e (local fixture site) + prod-mode test with the real CAEDM feed |
+| Single refresh at a time (DB lease); seeding never overwrites admin edits | ✅ | integration |
+
+**Final results:** Vitest 85 passed; Playwright 20 passed (desktop and mobile); typecheck, lint and the
+production build are clean. A production-mode smoke test of 20 checks passed (see DEPLOYMENT.md).
+
+**Not done (waiting on you):**
+- Supabase connection strings: `.env` has only the project URL and publishable key.
+- Running `db:setup` against Supabase.
+- Setting the Vercel environment variables.
+- IT email credentials.
+- Push to git (on hold per instruction).
+
+## Change request 2026-10-28 (1): roles, accounts, help (✅ committed 335c3fe)
 
 | Item | Status | Verified by |
 |---|---|---|

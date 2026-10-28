@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const invite = productionAccess().enabled ? findInvitation(token) : null;
+  const invite = productionAccess().enabled ? await findInvitation(token) : null;
   return (
     <div className="flex min-h-dvh items-center justify-center bg-navy-900 px-4 py-12">
       <div className="w-full max-w-sm">
@@ -29,7 +29,8 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
           ) : (
             <ActionForm action={acceptInviteAction} className="space-y-4">
               <p className="text-sm text-muted">
-                Setting up <span className="font-medium text-ink">{invite.email}</span> as {invite.role === "admin" ? "Administrator" : "Communications"}.
+                Setting up <span className="font-medium text-ink">{invite.email}</span> as{" "}
+                {invite.role === "admin" ? "Administrator" : "Communications"}.
               </p>
               <input type="hidden" name="token" value={token} />
               <Field label="Your name" htmlFor="name">

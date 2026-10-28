@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 import { HelpProvider, HelpTrigger } from "@/components/help";
+import { LiveUpdates } from "@/components/live-updates";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -23,6 +24,8 @@ export function AppShell({
   user,
   roleLabel,
   developer,
+  latestStoryId,
+  lastRefreshAt,
   counts,
   logoutAction,
   children,
@@ -30,6 +33,8 @@ export function AppShell({
   user: { name: string; email: string; role: string };
   roleLabel: string;
   developer: { name: string; email: string };
+  latestStoryId: number;
+  lastRefreshAt: number | null;
   counts: { followUps: number; outboxFailed: number; accessRequests: number };
   logoutAction: () => Promise<void>;
   children: React.ReactNode;
@@ -115,40 +120,44 @@ export function AppShell({
 
   return (
     <HelpProvider developer={developer} signedIn>
-    <div className="min-h-dvh lg:pl-60">
-      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-white focus:px-3 focus:py-2">
-        Skip to content
-      </a>
-      {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col gap-6 bg-navy-900 px-4 py-6 lg:flex">
-        {brand}
-        <div className="flex-1">{nav}</div>
-        {userBox}
-      </aside>
-      {/* Mobile header */}
-      <header className="sticky top-0 z-30 flex items-center justify-between bg-navy-900 px-4 py-3 lg:hidden">
-        {brand}
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          aria-controls="mobile-nav"
-          aria-label={open ? "Close menu" : "Open menu"}
-          className="rounded-md p-2 text-white hover:bg-white/10"
+      <div className="min-h-dvh lg:pl-60">
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-white focus:px-3 focus:py-2"
         >
-          {open ? <X className="size-5" /> : <Menu className="size-5" />}
-        </button>
-      </header>
-      {open ? (
-        <div id="mobile-nav" className="fixed inset-x-0 top-[60px] z-20 flex flex-col gap-6 bg-navy-900 px-4 pb-6 pt-2 shadow-lg lg:hidden">
-          {nav}
+          Skip to content
+        </a>
+        {/* Desktop sidebar */}
+        <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col gap-6 bg-navy-900 px-4 py-6 lg:flex">
+          {brand}
+          <div className="flex-1">{nav}</div>
           {userBox}
-        </div>
-      ) : null}
-      <main id="main" className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-        {children}
-      </main>
-    </div>
+        </aside>
+        {/* Mobile header */}
+        <header className="sticky top-0 z-30 flex items-center justify-between bg-navy-900 px-4 py-3 lg:hidden">
+          {brand}
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-controls="mobile-nav"
+            aria-label={open ? "Close menu" : "Open menu"}
+            className="rounded-md p-2 text-white hover:bg-white/10"
+          >
+            {open ? <X className="size-5" /> : <Menu className="size-5" />}
+          </button>
+        </header>
+        {open ? (
+          <div id="mobile-nav" className="fixed inset-x-0 top-[60px] z-20 flex flex-col gap-6 bg-navy-900 px-4 pb-6 pt-2 shadow-lg lg:hidden">
+            {nav}
+            {userBox}
+          </div>
+        ) : null}
+        <main id="main" className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <LiveUpdates initialLatestId={latestStoryId} initialLastRefreshAt={lastRefreshAt} />
+          {children}
+        </main>
+      </div>
     </HelpProvider>
   );
 }

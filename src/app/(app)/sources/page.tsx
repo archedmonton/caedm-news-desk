@@ -1,37 +1,59 @@
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Pencil, Plus } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { checkSourceNowAction, toggleSourceAction } from "@/actions/admin";
 import { HealthBadge, sourceHealth } from "@/components/badges";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { PageHeader } from "@/components/page-header";
-import { Card, CardHeader } from "@/components/ui/primitives";
+import { Button, Card, CardHeader } from "@/components/ui/primitives";
 import { can } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
 import { listSources, recentCheckLogs } from "@/lib/queries";
 import { getSettings } from "@/lib/settings";
 import { formatDateTime, formatRelative } from "@/lib/time";
+import { param } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Sources" };
 
 const METHOD_LABEL: Record<string, string> = { rss: "RSS feed", html: "Newsroom page", manual: "Manual submission" };
 
-export default async function SourcesPage() {
+export default async function SourcesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireUser();
+  const sp = await searchParams;
   const isAdmin = can(user.role, "manage_sources");
   const canCheck = can(user.role, "check_sources");
-  const all = listSources();
+  const all = await listSources();
   const monitored = all.filter((s) => s.verified);
   const expansion = all.filter((s) => !s.verified);
-  const logs = recentCheckLogs(25);
-  const interval = getSettings().checkIntervalMinutes;
+  const logs = await recentCheckLogs(25);
+  const interval = (await getSettings()).checkIntervalMinutes;
   const now = Date.now();
 
   return (
     <>
       <PageHeader
         title="Sources"
-        description={`Verified sources are checked every ${interval} minutes by the background worker, with exponential backoff after failures.`}
+        description={`Sources are checked every morning before the 8 AM brief, and up to every ${interval} minutes while staff are signed in. A failing source backs off automatically.`}
+        actions={
+          isAdmin ? (
+            <Button asChild>
+              <Link href="/sources/new">
+                <Plus /> Add source
+              </Link>
+            </Button>
+          ) : null
+        }
       />
+      {param(sp, "saved") ? (
+        <p role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          Source saved and verified. New stories will appear after its next check.
+        </p>
+      ) : null}
+      {param(sp, "deleted") ? (
+        <p role="status" className="mb-4 rounded-lg border border-line bg-surface px-4 py-3 text-sm text-ink">
+          Source deleted.
+        </p>
+      ) : null}
       <div className="space-y-4">
         {monitored.map((s) => {
           const health = sourceHealth(s);
@@ -42,8 +64,14 @@ export default async function SourcesPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-base font-semibold text-ink">{s.name}</h2>
                     <HealthBadge health={health} />
+                    {s.origin === "admin" ? <span className="text-xs text-subtle">Added by an administrator</span> : null}
                   </div>
-                  <a href={s.websiteUrl} target="_blank" rel="noopener noreferrer" className="mt-0.5 inline-flex items-center gap-1 text-sm text-navy-700 hover:underline">
+                  <a
+                    href={s.websiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-0.5 inline-flex items-center gap-1 text-sm text-navy-700 hover:underline"
+                  >
                     {s.websiteUrl} <ExternalLink className="size-3" />
                   </a>
                   <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
@@ -87,13 +115,20 @@ export default async function SourcesPage() {
                 {canCheck && s.method !== "manual" ? (
                   <div className="flex shrink-0 flex-col items-stretch gap-2 md:w-44">
                     {isAdmin ? (
-                    <form action={toggleSourceAction}>
-                      <input type="hidden" name="sourceId" value={s.id} />
-                      <input type="hidden" name="enabled" value={s.enabled ? "false" : "true"} />
-                      <SubmitButton variant={s.enabled ? "outline" : "default"} size="sm" className="w-full">
-                        {s.enabled ? "Disable monitoring" : "Enable monitoring"}
-                      </SubmitButton>
-                    </form>
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/sources/${s.id}`}>
+                          <Pencil /> Edit
+                        </Link>
+                      </Button>
+                    ) : null}
+                    {isAdmin ? (
+                      <form action={toggleSourceAction}>
+                        <input type="hidden" name="sourceId" value={s.id} />
+                        <input type="hidden" name="enabled" value={s.enabled ? "false" : "true"} />
+                        <SubmitButton variant={s.enabled ? "outline" : "default"} size="sm" className="w-full">
+                          {s.enabled ? "Disable monitoring" : "Enable monitoring"}
+                        </SubmitButton>
+                      </form>
                     ) : null}
                     <ActionForm action={checkSourceNowAction}>
                       <input type="hidden" name="sourceId" value={s.id} />
@@ -156,7 +191,11 @@ export default async function SourcesPage() {
       <Card className="mt-8">
         <CardHeader
           title="Expansion registry"
-          description="Planned sources. They can't be enabled until someone verifies an official feed or newsroom, robots.txt and publisher terms, and an adapter is configured."
+          description={
+            isAdmin
+              ? "Planned sources. Choose Set up, add the organization's RSS/Atom feed and test it; it is monitored once verified."
+              : "Planned sources. An administrator can set them up once an official feed is confirmed."
+          }
         />
         <ul className="divide-y divide-line">
           {expansion.map((s) => (
@@ -167,7 +206,14 @@ export default async function SourcesPage() {
                   {s.websiteUrl}
                 </a>
               </div>
-              <HealthBadge health="unverified" />
+              <div className="flex items-center gap-2">
+                <HealthBadge health="unverified" />
+                {isAdmin ? (
+                  <Button asChild variant="outline" size="xs">
+                    <Link href={`/sources/${s.id}`}>Set up</Link>
+                  </Button>
+                ) : null}
+              </div>
             </li>
           ))}
         </ul>

@@ -1,20 +1,34 @@
+import { PGlite } from "@electric-sql/pglite";
 import { eq } from "drizzle-orm";
-import { openDatabase, setDb, type DB } from "@/lib/db/client";
+import { first, pgliteHandle, setDb, type DB } from "@/lib/db/client";
 import { runMigrations } from "@/lib/db/migrate";
 import { sources } from "@/lib/db/schema";
 import { seedSources } from "@/lib/db/seed";
 
-/** Fresh in-memory database with migrations and the source registry. */
-export function testDb(): DB {
-  const { db, sqlite } = openDatabase(":memory:");
-  runMigrations(db);
-  seedSources(db);
-  setDb(db, sqlite);
-  return db;
+let template: Promise<PGlite> | null = null;
+let current: { close: () => Promise<void> } | null = null;
+
+async function migratedTemplate() {
+  const client = new PGlite();
+  const { db } = pgliteHandle(client);
+  await runMigrations(db, "pglite");
+  await seedSources(db);
+  return client;
 }
 
-export function sourceBySlug(db: DB, slug: string) {
-  return db.select().from(sources).where(eq(sources.slug, slug)).get()!;
+/** Fresh in-memory Postgres (a clone of a migrated, seeded template) that `getDb()` also returns. */
+export async function testDb(): Promise<DB> {
+  template ??= migratedTemplate();
+  const client = (await (await template).clone()) as PGlite;
+  await current?.close();
+  const handle = pgliteHandle(client);
+  current = handle;
+  setDb(handle);
+  return handle.db;
+}
+
+export async function sourceBySlug(db: DB, slug: string) {
+  return (await first(db.select().from(sources).where(eq(sources.slug, slug))))!;
 }
 
 export function fakeFetcher(routes: Record<string, string | Error | (() => string)>) {

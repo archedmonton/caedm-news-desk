@@ -1,8 +1,9 @@
 import { defineConfig } from "drizzle-kit";
 
 export default defineConfig({
-  dialect: "sqlite",
+  dialect: "postgresql",
   schema: "./src/lib/db/schema.ts",
   out: "./drizzle",
-  dbCredentials: { url: process.env.DATABASE_PATH ?? "./data/caedm-news-desk.db" },
+  // Only used by drizzle-kit commands that talk to a database; `generate` works offline.
+  dbCredentials: { url: process.env.DATABASE_URL_DIRECT ?? process.env.DATABASE_URL ?? "postgres://localhost/unused" },
 });

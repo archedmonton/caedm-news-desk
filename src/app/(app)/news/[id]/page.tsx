@@ -2,7 +2,14 @@ import { AlertTriangle, ArrowLeft, BadgeCheck, ExternalLink, RotateCcw } from "l
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { addNoteAction, assignFollowUpAction, markVerifiedAction, overridePriorityAction, resetPriorityAction, setStatusWithResultAction } from "@/actions/stories";
+import {
+  addNoteAction,
+  assignFollowUpAction,
+  markVerifiedAction,
+  overridePriorityAction,
+  resetPriorityAction,
+  setStatusWithResultAction,
+} from "@/actions/stories";
 import { CategoryBadge, PriorityBadge, SampleBadge, StatusBadge, VerificationBadge } from "@/components/badges";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { StoryRow } from "@/components/story-row";
@@ -38,10 +45,10 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
   const canReview = can(user.role, "review_news");
   const canPrioritize = can(user.role, "change_priority");
   const { id } = await params;
-  const d = getStoryDetail(Number(id));
+  const d = await getStoryDetail(Number(id));
   if (!d) notFound();
   const s = d.s;
-  const staff = listActiveStaff();
+  const staff = await listActiveStaff();
   const fu = d.followUp?.f;
   const due = fu?.dueAt ? zonedParts(fu.dueAt) : null;
   const nextStatuses = TRANSITIONS[s.reviewStatus].filter((x) => x !== "assigned");
@@ -125,50 +132,65 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
           <Card id="follow-up">
             <CardHeader
               title="Follow-up"
-              description={fu ? `Assigned to ${d.followUp?.assignee || d.followUp?.assigneeEmail || "nobody"}${fu.dueAt ? ` · due ${formatDateTime(fu.dueAt)}` : ""}` : "Not assigned"}
+              description={
+                fu
+                  ? `Assigned to ${d.followUp?.assignee || d.followUp?.assigneeEmail || "nobody"}${fu.dueAt ? ` · due ${formatDateTime(fu.dueAt)}` : ""}`
+                  : "Not assigned"
+              }
             />
             <div className="space-y-6 px-5 py-4">
               {canReview ? (
-              <ActionForm action={assignFollowUpAction} className="grid gap-3 sm:grid-cols-3">
-                <input type="hidden" name="storyId" value={s.id} />
-                <Field label="Assignee" htmlFor="assigneeId">
-                  <Select id="assigneeId" name="assigneeId" defaultValue={fu?.assigneeId ?? ""}>
-                    <option value="">Unassigned</option>
-                    {staff.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name || u.email}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Due date" htmlFor="dueDate">
-                  <Input id="dueDate" name="dueDate" type="date" defaultValue={fu?.dueAt ? edmontonDateKey(fu.dueAt) : ""} />
-                </Field>
-                <Field label="Due time" htmlFor="dueTime" hint="Edmonton time">
-                  <Input id="dueTime" name="dueTime" type="time" defaultValue={due ? `${String(due.hour).padStart(2, "0")}:${String(due.minute).padStart(2, "0")}` : "17:00"} />
-                </Field>
-                <Field label="Note (optional)" htmlFor="assign-note" className="sm:col-span-3">
-                  <Input id="assign-note" name="note" maxLength={4000} placeholder="What needs to happen?" />
-                </Field>
-                <div className="sm:col-span-3">
-                  <SubmitButton pendingText="Saving…">{fu ? "Update follow-up" : "Assign follow-up"}</SubmitButton>
-                </div>
-              </ActionForm>
+                <ActionForm action={assignFollowUpAction} className="grid gap-3 sm:grid-cols-3">
+                  <input type="hidden" name="storyId" value={s.id} />
+                  <Field label="Assignee" htmlFor="assigneeId">
+                    <Select id="assigneeId" name="assigneeId" defaultValue={fu?.assigneeId ?? ""}>
+                      <option value="">Unassigned</option>
+                      {staff.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name || u.email}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Due date" htmlFor="dueDate">
+                    <Input id="dueDate" name="dueDate" type="date" defaultValue={fu?.dueAt ? edmontonDateKey(fu.dueAt) : ""} />
+                  </Field>
+                  <Field label="Due time" htmlFor="dueTime" hint="Edmonton time">
+                    <Input
+                      id="dueTime"
+                      name="dueTime"
+                      type="time"
+                      defaultValue={due ? `${String(due.hour).padStart(2, "0")}:${String(due.minute).padStart(2, "0")}` : "17:00"}
+                    />
+                  </Field>
+                  <Field label="Note (optional)" htmlFor="assign-note" className="sm:col-span-3">
+                    <Input id="assign-note" name="note" maxLength={4000} placeholder="What needs to happen?" />
+                  </Field>
+                  <div className="sm:col-span-3">
+                    <SubmitButton pendingText="Saving…">{fu ? "Update follow-up" : "Assign follow-up"}</SubmitButton>
+                  </div>
+                </ActionForm>
               ) : null}
 
               <div>
                 <h3 className="text-sm font-semibold">Internal notes</h3>
                 {canReview ? (
-                <ActionForm action={addNoteAction} resetOnSuccess className="mt-2 space-y-2">
-                  <input type="hidden" name="storyId" value={s.id} />
-                  <label htmlFor="note-body" className="sr-only">
-                    New note
-                  </label>
-                  <Textarea id="note-body" name="body" required maxLength={4000} placeholder="Add an internal note (not shared outside News Desk)" />
-                  <SubmitButton size="sm" variant="outline" pendingText="Adding…">
-                    Add note
-                  </SubmitButton>
-                </ActionForm>
+                  <ActionForm action={addNoteAction} resetOnSuccess className="mt-2 space-y-2">
+                    <input type="hidden" name="storyId" value={s.id} />
+                    <label htmlFor="note-body" className="sr-only">
+                      New note
+                    </label>
+                    <Textarea
+                      id="note-body"
+                      name="body"
+                      required
+                      maxLength={4000}
+                      placeholder="Add an internal note (not shared outside News Desk)"
+                    />
+                    <SubmitButton size="sm" variant="outline" pendingText="Adding…">
+                      Add note
+                    </SubmitButton>
+                  </ActionForm>
                 ) : null}
                 <ul className="mt-4 space-y-3">
                   {d.notes.length === 0 ? <li className="text-sm text-muted">No notes yet.</li> : null}
@@ -188,60 +210,72 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
           {d.related.length ? (
             <Card>
               <CardHeader title="Related stories" description="Grouped by similar headlines" />
-              <div className="divide-y divide-line">{d.related.map((r) => <StoryRow key={r.id} s={r} actions={false} />)}</div>
+              <div className="divide-y divide-line">
+                {d.related.map((r) => (
+                  <StoryRow key={r.id} s={r} actions={false} />
+                ))}
+              </div>
             </Card>
           ) : null}
         </div>
 
         <div className="space-y-6">
           {canReview ? (
-          <Card>
-            <CardHeader title="Workflow" description="New → Reviewing → Assigned → Covered / Archived" />
-            <div className="space-y-2 px-5 py-4">
-              <ActionForm action={setStatusWithResultAction} className="flex flex-wrap gap-2">
-                <input type="hidden" name="storyId" value={s.id} />
-                {nextStatuses.map((st) => (
-                  <SubmitButton key={st} name="status" value={st} variant={st === "covered" ? "default" : "outline"} size="sm">
-                    {st === "reviewing" ? (s.reviewStatus === "new" ? "Mark reviewed" : "Reopen") : st === "new" ? "Restore to New" : st === "covered" ? "Mark covered" : "Archive"}
-                  </SubmitButton>
-                ))}
-              </ActionForm>
-              <p className="text-xs text-muted">To assign, use the Follow-up panel.</p>
-            </div>
-          </Card>
+            <Card>
+              <CardHeader title="Workflow" description="New → Reviewing → Assigned → Covered / Archived" />
+              <div className="space-y-2 px-5 py-4">
+                <ActionForm action={setStatusWithResultAction} className="flex flex-wrap gap-2">
+                  <input type="hidden" name="storyId" value={s.id} />
+                  {nextStatuses.map((st) => (
+                    <SubmitButton key={st} name="status" value={st} variant={st === "covered" ? "default" : "outline"} size="sm">
+                      {st === "reviewing"
+                        ? s.reviewStatus === "new"
+                          ? "Mark reviewed"
+                          : "Reopen"
+                        : st === "new"
+                          ? "Restore to New"
+                          : st === "covered"
+                            ? "Mark covered"
+                            : "Archive"}
+                    </SubmitButton>
+                  ))}
+                </ActionForm>
+                <p className="text-xs text-muted">To assign, use the Follow-up panel.</p>
+              </div>
+            </Card>
           ) : null}
 
           {canPrioritize ? (
-          <Card>
-            <CardHeader title="Change priority" />
-            <div className="px-5 py-4">
-              <ActionForm action={overridePriorityAction} className="space-y-3">
-                <input type="hidden" name="storyId" value={s.id} />
-                <Field label="Priority" htmlFor="priority">
-                  <Select id="priority" name="priority" defaultValue={s.priority}>
-                    <option value="P0">P0 Critical</option>
-                    <option value="P1">P1 High</option>
-                    <option value="P2">P2 Standard</option>
-                    <option value="P3">P3 Background</option>
-                  </Select>
-                </Field>
-                <Field label="Reason" htmlFor="reason">
-                  <Input id="reason" name="reason" required maxLength={300} placeholder="Why the change?" />
-                </Field>
-                <SubmitButton size="sm" pendingText="Saving…">
-                  Save priority
-                </SubmitButton>
-              </ActionForm>
-              {s.priorityOverridden ? (
-                <form action={resetPriorityAction} className="mt-3">
+            <Card>
+              <CardHeader title="Change priority" />
+              <div className="px-5 py-4">
+                <ActionForm action={overridePriorityAction} className="space-y-3">
                   <input type="hidden" name="storyId" value={s.id} />
-                  <SubmitButton variant="ghost" size="sm">
-                    <RotateCcw /> Restore automatic priority
+                  <Field label="Priority" htmlFor="priority">
+                    <Select id="priority" name="priority" defaultValue={s.priority}>
+                      <option value="P0">P0 Critical</option>
+                      <option value="P1">P1 High</option>
+                      <option value="P2">P2 Standard</option>
+                      <option value="P3">P3 Background</option>
+                    </Select>
+                  </Field>
+                  <Field label="Reason" htmlFor="reason">
+                    <Input id="reason" name="reason" required maxLength={300} placeholder="Why the change?" />
+                  </Field>
+                  <SubmitButton size="sm" pendingText="Saving…">
+                    Save priority
                   </SubmitButton>
-                </form>
-              ) : null}
-            </div>
-          </Card>
+                </ActionForm>
+                {s.priorityOverridden ? (
+                  <form action={resetPriorityAction} className="mt-3">
+                    <input type="hidden" name="storyId" value={s.id} />
+                    <SubmitButton variant="ghost" size="sm">
+                      <RotateCcw /> Restore automatic priority
+                    </SubmitButton>
+                  </form>
+                ) : null}
+              </div>
+            </Card>
           ) : null}
 
           <Card>

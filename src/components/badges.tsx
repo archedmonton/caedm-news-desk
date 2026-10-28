@@ -76,7 +76,13 @@ const HEALTH_STYLES = {
 
 export type Health = keyof typeof HEALTH_STYLES;
 
-export function sourceHealth(s: { enabled: boolean; verified: boolean; method: string; consecutiveFailures: number; lastSuccessAt: number | null }): Health {
+export function sourceHealth(s: {
+  enabled: boolean;
+  verified: boolean;
+  method: string;
+  consecutiveFailures: number;
+  lastSuccessAt: number | null;
+}): Health {
   if (s.method === "manual") return "manual";
   if (!s.verified) return "unverified";
   if (!s.enabled) return "disabled";

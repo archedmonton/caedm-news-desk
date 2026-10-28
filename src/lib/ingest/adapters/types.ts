@@ -16,7 +16,7 @@ export type AdapterContext = {
   /** Robots-checked, SSRF-safe fetch. */
   fetch: (url: string) => Promise<SafeFetchResult>;
   /** Returns which of the given canonical URLs are already stored. */
-  knownUrls: (urls: string[]) => Set<string>;
+  knownUrls: (urls: string[]) => Promise<Set<string>>;
   /** True on the first successful check of a source (historical backlog). */
   isBaseline: boolean;
   now: number;

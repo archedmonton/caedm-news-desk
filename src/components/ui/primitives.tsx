@@ -42,7 +42,17 @@ export function Card({ className, ...props }: React.ComponentProps<"section">) {
   return <section className={cn("rounded-xl border border-line bg-surface shadow-[0_1px_2px_rgba(0,0,0,0.03)]", className)} {...props} />;
 }
 
-export function CardHeader({ className, title, description, action }: { className?: string; title: React.ReactNode; description?: React.ReactNode; action?: React.ReactNode }) {
+export function CardHeader({
+  className,
+  title,
+  description,
+  action,
+}: {
+  className?: string;
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  action?: React.ReactNode;
+}) {
   return (
     <div className={cn("flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4", className)}>
       <div className="min-w-0">
@@ -77,7 +87,19 @@ export function Label({ className, ...props }: React.ComponentProps<"label">) {
   return <label className={cn("mb-1 block text-[13px] font-medium text-ink", className)} {...props} />;
 }
 
-export function Field({ label, hint, htmlFor, children, className }: { label: string; hint?: React.ReactNode; htmlFor?: string; children: React.ReactNode; className?: string }) {
+export function Field({
+  label,
+  hint,
+  htmlFor,
+  children,
+  className,
+}: {
+  label: string;
+  hint?: React.ReactNode;
+  htmlFor?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <div className={className}>
       <Label htmlFor={htmlFor}>{label}</Label>

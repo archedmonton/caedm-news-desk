@@ -11,8 +11,8 @@ export const metadata: Metadata = { title: "Brief preview" };
 
 export default async function DigestPreviewPage() {
   await requireUser();
-  const d = buildDigest();
-  const s = getSettings();
+  const d = await buildDigest();
+  const s = await getSettings();
   return (
     <>
       <Link href="/outbox" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-ink">

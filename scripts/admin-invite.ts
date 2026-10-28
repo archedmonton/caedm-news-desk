@@ -1,5 +1,6 @@
 import "./_bootstrap";
 import { createInvitation } from "../src/lib/auth/users";
+import { closeDb } from "../src/lib/db/client";
 
 async function main() {
   // Operator bootstrap (requires server shell access):
@@ -15,4 +16,9 @@ async function main() {
   console.log(r.inviteUrl);
 }
 
-void main();
+main()
+  .catch((e) => {
+    console.error(`✗ ${(e as Error).message}`);
+    process.exitCode = 1;
+  })
+  .finally(closeDb);

@@ -3,35 +3,30 @@
 ## 1. Overview
 
 ```
-                    ┌────────────────────────────────────────────────┐
-  Staff browser ───▶│ Next.js 15 (App Router, server components,     │
-                    │ server actions)  — dashboard + auth            │
-                    └───────────────┬────────────────────────────────┘
-                                    │ shared library code (src/lib)
-                    ┌───────────────▼────────────────────────────────┐
-                    │ SQLite (WAL) via Drizzle ORM — data/*.db       │
-                    └───────────────▲────────────────────────────────┘
-                                    │
-                    ┌───────────────┴────────────────────────────────┐
-                    │ Worker (Node.js, `npm run worker`)             │
-                    │  every 60 s: due source checks → classify →    │
-                    │  alerts → digest (07:30 Edmonton) → retries    │
-                    └───────┬───────────────────────────┬────────────┘
-                            │ safe HTTP fetch            │ mail transport
-                 RSS feeds / newsroom HTML        outbox (default) | SMTP | Graph
+ Staff browser ──▶ Next.js 15 on Vercel (App Router, server components, server actions)
+   │  polls /api/live every 60 s        │ shared library code (src/lib)
+   │                                    ▼
+   │                         Postgres via Drizzle ORM
+   │                Supabase (production) · PGlite embedded (local dev & tests)
+   │                                    ▲
+   └── refresh while signed in ─┐       │
+ Vercel Cron (≈ 8 AM Edmonton) ─┴──▶ runTick (one at a time, DB lease):
+                                     due source checks → classify → alerts → 8 AM brief → email retries
+                                       │ safe HTTP fetch            │ mail transport
+                              RSS feeds / newsroom HTML      outbox (default) | SMTP | Graph
 ```
 
-There are two processes, one database and one codebase. Neither needs a queue, Redis or another external
-service.
+There is one codebase and one database, with no always-on process and no queue. `npm run worker` remains
+available for self-hosting and calls the same `runTick`.
 
 ## 2. Key decisions
 
 | Decision | Choice | Why |
 |---|---|---|
 | Framework | Next.js 15 App Router, React 19 | Requested; server components keep DB access server-side. |
-| DB | SQLite (better-sqlite3, WAL) + Drizzle ORM/Kit | Zero cost, single file, easy backup; Drizzle migrations are SQL files in `drizzle/`. |
-| Background work | Separate Node worker run with `tsx`, 60 s tick loop | Survives web restarts; tick + DB "claim" rows make jobs idempotent. No external queue. |
-| Scheduling | Tick loop compares the current America/Edmonton wall-clock time to the configured `HH:MM` | DST-safe: we never compute fixed UTC offsets; "has today's digest been claimed?" is a unique key `digest:YYYY-MM-DD` (Edmonton date). |
+| DB | Postgres + Drizzle ORM/Kit: Supabase via postgres-js (`prepare: false` for the transaction pooler) in production; PGlite (Postgres compiled to WASM) for local dev and tests | Same SQL dialect everywhere; no local install; free tiers. Migrations are SQL files in `drizzle/`, and RLS is enabled on every table. |
+| Scheduling | `runTick` called by Vercel Cron (14:00 and 15:00 UTC, which is the 8 AM hour in both MDT and MST) and by `/api/live` (background, via `after()`) when sources are due | Fits Vercel Hobby (daily crons only); "real-time" while staff are working. An atomic DB lease prevents overlapping refreshes across serverless instances. |
+| Brief timing | `runScheduledDigest` compares Edmonton wall-clock time to the configured `HH:MM` (default 08:00) | DST-safe, never fixed UTC offsets. `digest:YYYY-MM-DD` (Edmonton date) is a unique key, so it is sent at most once a day. |
 | Timezone | Pure `Intl` helpers in `src/lib/time.ts` | No tz-data dependency; tested across DST transitions. |
 | Feeds | `rss-parser` on text we fetched ourselves | Parsing is separated from fetching so all network access goes through the safe fetcher. |
 | HTML | Cheerio on publisher listing pages only | Used only where no feed exists, robots.txt allows it, and only headline / date / publisher-supplied lede are read. |
@@ -63,7 +58,10 @@ src/
     priority/  rules.ts, classify.ts
     notify/    templates/*, transport/*, digest.ts, alerts.ts, deliver.ts
     settings.ts, audit.ts, time.ts, env.ts
-worker/index.ts                    background worker entry
+worker/index.ts                    optional self-hosting loop (calls runTick)
+src/lib/tick.ts                    the refresh routine + lease
+src/lib/sources-admin.ts           feed discovery, testing, create/update/delete for admins
+app/api/cron/tick, app/api/live    scheduler entry point (CRON_SECRET) and live updates (session)
 scripts/                           CLI: collect, digest preview, alert dry-run, invite admin
 drizzle/                           generated SQL migrations
 tests/unit, tests/e2e              Vitest and Playwright
@@ -100,7 +98,8 @@ display and scheduling.
 
 ## 5. Ingestion pipeline
 
-1. **Due check.** The worker selects enabled, verified sources where `next_check_at <= now`.
+1. **Due check.** `runTick` (cron, live refresh, or worker) selects enabled, verified sources where
+   `next_check_at <= now` and checks them in parallel (one host per source).
 2. **Safe fetch** (`safe-fetch.ts`):
    - http/https only, standard ports only.
    - DNS-resolve and reject private, loopback, link-local, CGNAT and metadata addresses.
@@ -184,8 +183,8 @@ overwrites them.
 ## 7. Notifications
 
 - **Digest** (`digest.ts`).
-  - The worker computes the Edmonton date and time each tick.
-  - If time ≥ the scheduled time (default 07:30) and within a 4 h catch-up window, it inserts a
+  - Each refresh computes the Edmonton date and time.
+  - If time ≥ the scheduled time (default 08:00) and within a 4 h catch-up window, it inserts a
     `notifications` row with `dedupe_key = digest:<date>`. The unique constraint makes the claim atomic, so a
     second worker or a restart gets a conflict and does nothing.
   - Content is non-archived stories detected since the last delivered digest (fallback lookback 24 h,
@@ -270,13 +269,21 @@ overwrites them.
   - Capped at 10 per user per day.
   - Administrators track their status in Settings.
 
-## 10. Deployment (future, with IT approval)
+## 10. Sources managed by administrators
 
-A single Windows or Linux VM with Node 24 LTS:
+- **Adding a source:**
+  1. Enter the organization's website. **Find feed** reads only the feeds the site advertises
+     (`<link rel="alternate">`); we never guess endpoints.
+  2. **Test** fetches the feed exactly as monitoring does (SSRF guard, robots.txt) and shows its latest
+     headlines.
+  3. Saving re-tests the feed and records `verified_by` and `verified_at`.
+- **Adapters:** new sources always use the generic RSS/Atom adapter. Newsroom-page readers (ECSD, Covenant,
+  Alberta) are code-reviewed adapters; admins can edit those sources, and a changed address is re-tested
+  with the same adapter.
+- **Seeding:** `seedSources` only inserts missing registry entries, so admin edits are never overwritten.
+- **Deleting:** sources that have stories can't be deleted, only disabled, to keep their history.
 
-- `npm ci && npm run build && npm run db:migrate`.
-- Run `npm start` (web) and `npm run worker` as two services (NSSM / Windows Service, or systemd), behind
-  IIS/nginx with TLS.
-- Back up the `data/` SQLite file nightly (`sqlite3 .backup`).
-- Mail: approved SMTP relay or a Graph app registration with `Mail.Send` scoped to one mailbox. See
-  [DEPLOYMENT.md](DEPLOYMENT.md).
+## 11. Deployment
+
+Vercel + Supabase. See [DEPLOYMENT.md](DEPLOYMENT.md) for the step-by-step guide, environment variables and
+checklist.

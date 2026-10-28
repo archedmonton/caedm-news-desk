@@ -32,7 +32,7 @@ const ecsdAdapter: SourceAdapter = {
     const listing = parseEcsdListing(res.body, res.url).slice(0, 24);
     const warnings: string[] = [];
     if (!listing.length) warnings.push("Listing parsed but no items found — page structure may have changed");
-    const known = ctx.knownUrls(listing.map((i) => i.url));
+    const known = await ctx.knownUrls(listing.map((i) => i.url));
     const budget = ctx.isBaseline ? 24 : 8;
     let fetched = 0;
     for (const item of listing) {

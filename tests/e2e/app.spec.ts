@@ -34,7 +34,10 @@ test("news feed search, filters, detail and original link", async ({ page }) => 
   }
 
   await page.goto("/news?q=Misericordia");
-  await page.getByRole("heading", { name: /Misericordia hospital introduces/ }).getByRole("link").click();
+  await page
+    .getByRole("heading", { name: /Misericordia hospital introduces/ })
+    .getByRole("link")
+    .click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Misericordia hospital");
   await expect(page.getByRole("heading", { name: "Why this priority" })).toBeVisible();
   const original = page.getByRole("link", { name: "Open original source" });
@@ -81,7 +84,11 @@ test("review workflow: mark reviewed, override priority, assign follow-up, add n
 test("archive removes a story from the active feed", async ({ page }) => {
   await devSignIn(page);
   await page.goto("/news?q=Monthly+newsletter");
-  await page.getByTestId("story-row").first().getByRole("button", { name: /Archive/ }).click();
+  await page
+    .getByTestId("story-row")
+    .first()
+    .getByRole("button", { name: /Archive/ })
+    .click();
   await expect(page.getByText("No stories match these filters")).toBeVisible();
   await page.goto("/news?q=Monthly+newsletter&status=archived");
   await expect(page.getByTestId("story-row")).toHaveCount(1);
@@ -185,7 +192,12 @@ test("members can review but not manage; viewers are read-only", async ({ page }
   await page.goto("/sources");
   await expect(page.getByRole("button", { name: /monitoring|Check now/ })).toHaveCount(0);
   await page.goto("/news?q=Misericordia");
-  await expect(page.getByTestId("story-row").first().getByRole("button", { name: /Mark reviewed/ })).toBeVisible();
+  await expect(
+    page
+      .getByTestId("story-row")
+      .first()
+      .getByRole("button", { name: /Mark reviewed/ }),
+  ).toBeVisible();
   await page.getByTestId("story-row").first().getByRole("heading").getByRole("link").click();
   await expect(page.getByRole("heading", { name: "Workflow" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Change priority" })).toHaveCount(0);

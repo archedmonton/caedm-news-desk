@@ -1,0 +1,7 @@
+import { expect, type Page } from "@playwright/test";
+
+export async function devSignIn(page: Page, who: "Dev Administrator" | "Dev Communications" = "Dev Administrator") {
+  await page.goto("/login");
+  await page.getByRole("button", { name: new RegExp(who) }).click();
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+}

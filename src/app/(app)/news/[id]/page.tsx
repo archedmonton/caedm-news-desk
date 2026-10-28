@@ -7,6 +7,7 @@ import { CategoryBadge, PriorityBadge, SampleBadge, StatusBadge, VerificationBad
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { StoryRow } from "@/components/story-row";
 import { Button, Card, CardHeader, Field, Input, Select, Textarea } from "@/components/ui/primitives";
+import { can } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
 import { getStoryDetail, listActiveStaff } from "@/lib/queries";
 import { edmontonDateKey, formatDateTime, zonedParts } from "@/lib/time";
@@ -33,7 +34,9 @@ function Meta({ label, children }: { label: string; children: React.ReactNode })
 }
 
 export default async function StoryPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireUser();
+  const user = await requireUser();
+  const canReview = can(user.role, "review_news");
+  const canPrioritize = can(user.role, "change_priority");
   const { id } = await params;
   const d = getStoryDetail(Number(id));
   if (!d) notFound();
@@ -86,7 +89,7 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
                   <ExternalLink /> Open original source
                 </a>
               </Button>
-              {s.verificationStatus === "unverified" ? (
+              {canReview && s.verificationStatus === "unverified" ? (
                 <form action={markVerifiedAction}>
                   <input type="hidden" name="storyId" value={s.id} />
                   <SubmitButton variant="outline">
@@ -125,6 +128,7 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
               description={fu ? `Assigned to ${d.followUp?.assignee || d.followUp?.assigneeEmail || "nobody"}${fu.dueAt ? ` · due ${formatDateTime(fu.dueAt)}` : ""}` : "Not assigned"}
             />
             <div className="space-y-6 px-5 py-4">
+              {canReview ? (
               <ActionForm action={assignFollowUpAction} className="grid gap-3 sm:grid-cols-3">
                 <input type="hidden" name="storyId" value={s.id} />
                 <Field label="Assignee" htmlFor="assigneeId">
@@ -150,9 +154,11 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
                   <SubmitButton pendingText="Saving…">{fu ? "Update follow-up" : "Assign follow-up"}</SubmitButton>
                 </div>
               </ActionForm>
+              ) : null}
 
               <div>
                 <h3 className="text-sm font-semibold">Internal notes</h3>
+                {canReview ? (
                 <ActionForm action={addNoteAction} resetOnSuccess className="mt-2 space-y-2">
                   <input type="hidden" name="storyId" value={s.id} />
                   <label htmlFor="note-body" className="sr-only">
@@ -163,6 +169,7 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
                     Add note
                   </SubmitButton>
                 </ActionForm>
+                ) : null}
                 <ul className="mt-4 space-y-3">
                   {d.notes.length === 0 ? <li className="text-sm text-muted">No notes yet.</li> : null}
                   {d.notes.map(({ n, author, authorEmail }) => (
@@ -187,6 +194,7 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
         </div>
 
         <div className="space-y-6">
+          {canReview ? (
           <Card>
             <CardHeader title="Workflow" description="New → Reviewing → Assigned → Covered / Archived" />
             <div className="space-y-2 px-5 py-4">
@@ -201,7 +209,9 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
               <p className="text-xs text-muted">To assign, use the Follow-up panel.</p>
             </div>
           </Card>
+          ) : null}
 
+          {canPrioritize ? (
           <Card>
             <CardHeader title="Change priority" />
             <div className="px-5 py-4">
@@ -232,6 +242,7 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
               ) : null}
             </div>
           </Card>
+          ) : null}
 
           <Card>
             <CardHeader title="History" />

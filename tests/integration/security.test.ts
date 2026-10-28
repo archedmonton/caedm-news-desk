@@ -73,14 +73,14 @@ describe("authentication & authorization", () => {
 
   it("invitation is single-use, expires, and activates the account", async () => {
     const now = Date.parse("2026-10-28T18:00:00Z");
-    const inv = await createInvitation({ email: "New.Person@caedm.ca", role: "communications", invitedBy: null }, db, now);
+    const inv = await createInvitation({ email: "New.Person@caedm.ca", role: "member", invitedBy: null }, db, now);
     const token = inv.inviteUrl.split("/invite/")[1];
     expect(db.select().from(notifications).where(eq(notifications.kind, "invite")).get()!.status).toBe("simulated");
     expect(findInvitation(token, db, now + 73 * 3600_000)).toBeUndefined();
     await acceptInvitation({ token, name: "New Person", password: "correct horse battery" }, db, now + 60_000);
     await expect(acceptInvitation({ token, name: "Again", password: "correct horse battery" }, db, now)).rejects.toThrow(/invalid, expired or already used/);
     const user = await authenticate("new.person@caedm.ca", "correct horse battery", db, now);
-    expect(user.role).toBe("communications");
+    expect(user.role).toBe("member");
   });
 
   it("locks the account after repeated failures and audits them", async () => {
@@ -92,11 +92,24 @@ describe("authentication & authorization", () => {
     expect(db.select().from(auditLogs).where(eq(auditLogs.action, "auth.login_failed")).all()).toHaveLength(5);
   });
 
-  it("applies role permissions", () => {
-    expect(can("admin", "manage_sources")).toBe(true);
-    expect(can("communications", "manage_sources")).toBe(false);
-    expect(can("communications", "manage_staff")).toBe(false);
-    expect(can("communications", "change_priority")).toBe(true);
+  it("applies the four-role permission matrix", () => {
+    const matrix = {
+      read_news: [true, true, true, true],
+      manage_own_account: [true, true, true, true],
+      request_feature: [true, true, true, true],
+      review_news: [true, true, true, false],
+      manage_follow_ups: [true, true, true, false],
+      submit_links: [true, true, true, false],
+      change_priority: [true, true, false, false],
+      check_sources: [true, true, false, false],
+      send_test_notifications: [true, true, false, false],
+      manage_sources: [true, false, false, false],
+      manage_staff: [true, false, false, false],
+      manage_settings: [true, false, false, false],
+    } as const;
+    for (const [perm, expected] of Object.entries(matrix)) {
+      expect((["admin", "manager", "member", "viewer"] as const).map((r) => can(r, perm as keyof typeof matrix)), perm).toEqual(expected);
+    }
     expect(can(null, "read_news")).toBe(false);
   });
 

@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 import { env } from "../env";
 
-export type OutgoingEmail = { to: string; subject: string; html: string; text: string };
+export type OutgoingEmail = { to: string; subject: string; html: string; text: string; replyTo?: string };
 
 export interface MailTransport {
   name: string;
@@ -70,6 +70,7 @@ function graphTransport(): MailTransport {
             subject: msg.subject,
             body: { contentType: "HTML", content: msg.html },
             toRecipients: msg.to.split(",").map((a) => ({ emailAddress: { address: a.trim() } })),
+          ...(msg.replyTo ? { replyTo: [{ emailAddress: { address: msg.replyTo } }] } : {}),
           },
           saveToSentItems: true,
         }),

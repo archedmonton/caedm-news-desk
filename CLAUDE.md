@@ -34,6 +34,11 @@ current.
 - Every server action must call `requireUser(permission)` and `audit(...)` for mutations. Middleware is
   UX-only.
 - Dev sign-in must stay impossible in production: `devLoginAllowed()` checks `NODE_ENV`.
+- Roles are `admin > manager > member > viewer`. Check permissions with `can()` from
+  `src/lib/auth/permissions.ts`, never by comparing role names. The developer account (`is_developer`) is
+  protected.
+- Never let drizzle-kit rebuild a table that other tables reference. Hand-write additive migrations instead
+  (see `drizzle/0001_*.sql`).
 - Store timestamps as UTC milliseconds. Use the helpers in `src/lib/time.ts` for anything Edmonton-local,
   and never hardcode UTC offsets.
 - Scheduled jobs must stay idempotent through unique `notifications.dedupe_key` values.

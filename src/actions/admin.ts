@@ -34,7 +34,7 @@ export async function toggleSourceAction(fd: FormData) {
 
 export async function checkSourceNowAction(_p: ActionState, fd: FormData): Promise<ActionState> {
   try {
-    const user = await requireUser("manage_sources");
+    const user = await requireUser("check_sources");
     const sourceId = id.parse(fd.get("sourceId"));
     const r = await checkSource(sourceId, { trigger: "manual" });
     audit("source.checked_manually", "source", sourceId, user.id, { status: r.status, itemsNew: r.itemsNew });

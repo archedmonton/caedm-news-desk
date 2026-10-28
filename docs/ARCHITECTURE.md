@@ -74,8 +74,12 @@ tests/unit, tests/e2e              Vitest and Playwright
 All timestamps are stored as UTC epoch milliseconds (`integer`), and converted to Edmonton time only for
 display and scheduling.
 
-- `users`: email (unique), name, role (`admin` | `communications`), status (`invited` | `active` |
-  `disabled`), password hash, lockout counters.
+- `users`: email (unique), name, role (`admin` | `manager` | `member` | `viewer`), status (`invited` | `active` |
+  `disabled`), password hash, lockout counters, `is_developer`, and personal notification preferences
+  (`notify_digest`, `notify_alerts` = all/p0/none, `notify_assignments`, `notify_access_requests`).
+- `access_requests`: public "request access" submissions (name, work email, department, requested role,
+  reason, status, reviewer, granted role).
+- `feature_requests`: staff requests emailed to the developer (title, details, type, importance, status).
 - `invitations`: email, role, sha256(token) (unique), expiry, accepted time.
 - `sessions`: sha256(token) (unique), user, expiry, last seen.
 - `sources`: slug (unique), name, site URL, feed/listing URL, method (`rss` | `html` | `manual`), adapter, type,
@@ -232,7 +236,41 @@ overwrites them.
   - All outbound fetches go through the SSRF-safe fetcher.
 - **Secrets** only via env (`.env.local`); `.env*` is git-ignored except `.env.example`.
 
-## 9. Deployment (future, with IT approval)
+## 9. Roles, accounts and support (change request 2026-10-28)
+
+| Role | Can |
+|---|---|
+| Administrator | Everything: staff (only admins add people), sources, settings, system health |
+| Manager | Member rights plus priority overrides, brief/alert tools, on-demand source checks |
+| Member | Review stories, follow-ups and notes, submit links |
+| Viewer | Read-only |
+
+- **Developer administrator.** `DEVELOPER_EMAIL` (default `ruban.peppin@caedm.ca`) is seeded as a protected
+  admin with `is_developer=1`. Other admins can't demote or disable it.
+  - Development: active, usable through dev sign-in.
+  - Production: invited; bootstrap with `npm run admin:invite`.
+- **Work-email sign-in.** The sign-in form only accepts `@ALLOWED_EMAIL_DOMAIN` addresses, checked both in
+  the browser and on the server.
+- **Request access.** A public form on the login page.
+  - Spam controls: honeypot field, 20 requests/hour cap, one pending request per email.
+  - It returns the same reply whether or not an account exists, so it can't be used to discover accounts.
+  - Requests appear on the admin Overview, with a badge in the sidebar, and are emailed to admins who opted in.
+  - Approval issues a normal single-use invitation with the role the admin picks.
+- **Personal notifications.**
+  - The brief and alerts always go to the team mailbox, plus each user who opted in. "P0 only" users are added
+    only when the alert contains a P0 story.
+  - Assignees get an email when someone else assigns them a follow-up.
+  - Brief previews go only to the person who requested them.
+- **Contextual help.** One help panel per page tree (`HelpProvider`), opened from the login page, the
+  Overview header and the sidebar. Its content depends on the current page, and it shows the developer
+  contact.
+- **Feature requests.**
+  - Stored, then emailed to `DEVELOPER_EMAIL` with Reply-To set to the requester (simulated until live
+    email is enabled).
+  - Capped at 10 per user per day.
+  - Administrators track their status in Settings.
+
+## 10. Deployment (future, with IT approval)
 
 A single Windows or Linux VM with Node 24 LTS:
 

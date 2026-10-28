@@ -5,6 +5,7 @@ import { env } from "../env";
 import { getSettings } from "../settings";
 import { edmontonDateKey, scheduledInstantForDay } from "../time";
 import { deliverNotification } from "./deliver";
+import { digestRecipients } from "./recipients";
 import { renderDigest, type DigestFollowUp, type DigestSection, type EmailStory } from "./templates/emails";
 
 const MAX_PER_SECTION = 8;
@@ -173,7 +174,7 @@ export async function runScheduledDigest(db: DB = getDb(), now = Date.now()): Pr
       .values({
         kind: "digest",
         dedupeKey,
-        recipient: settings.digestRecipient,
+        recipient: digestRecipients(db, settings.digestRecipient),
         subject: built.subject,
         html: built.html,
         text: built.text,
@@ -195,7 +196,10 @@ export async function runScheduledDigest(db: DB = getDb(), now = Date.now()): Pr
   return { status: "created", notificationId: id, dateKey, storyCount: built.storyIds.length };
 }
 
-/** Manual "send preview to outbox": stored as a test message; does not consume stories from the real digest. */
+/**
+ * Manual "send preview to outbox": stored as a test message addressed only to the requester; does not
+ * consume stories from the real digest.
+ */
 export async function createDigestPreviewNotification(db: DB = getDb(), now = Date.now(), requestedBy?: string) {
   const settings = getSettings(db);
   const built = buildDigest(db, now);
@@ -204,7 +208,7 @@ export async function createDigestPreviewNotification(db: DB = getDb(), now = Da
     .values({
       kind: "test",
       dedupeKey: `digest-preview:${now}:${Math.random().toString(36).slice(2, 8)}`,
-      recipient: settings.digestRecipient,
+      recipient: requestedBy ?? settings.digestRecipient,
       subject: `[PREVIEW] ${built.subject}`,
       html: built.html,
       text: built.text,

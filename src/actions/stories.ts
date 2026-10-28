@@ -9,6 +9,7 @@ import { PRIORITIES, REVIEW_STATUSES } from "@/lib/db/schema";
 import { submitManualLink } from "@/lib/ingest/collector";
 import { FetchError } from "@/lib/ingest/safe-fetch";
 import { edmontonDayRange, zonedTimeToUtc } from "@/lib/time";
+import { notifyAssignment } from "@/lib/notify/personal";
 import { addFollowUpNote, assignFollowUp, markVerified, overridePriority, resetPriority, setReviewStatus } from "@/lib/workflow";
 
 const id = z.coerce.number().int().positive();
@@ -86,9 +87,12 @@ export async function assignFollowUpAction(_p: ActionState, fd: FormData): Promi
     const storyId = id.parse(fd.get("storyId"));
     const assigneeRaw = String(fd.get("assigneeId") ?? "");
     const dueAt = parseDue(String(fd.get("dueDate") ?? ""), String(fd.get("dueTime") ?? ""));
-    assignFollowUp(storyId, { assigneeId: assigneeRaw ? id.parse(assigneeRaw) : null, dueAt, note: String(fd.get("note") ?? "") }, user.id);
+    const assigneeId = assigneeRaw ? id.parse(assigneeRaw) : null;
+    const note = String(fd.get("note") ?? "");
+    const followUpId = assignFollowUp(storyId, { assigneeId, dueAt, note }, user.id);
+    const emailed = await notifyAssignment({ storyId, followUpId, assigneeId, actorId: user.id, dueAt, note });
     refresh(storyId);
-    return { ok: true, message: "Follow-up assigned." };
+    return { ok: true, message: emailed ? "Follow-up assigned. The assignee was notified by email." : "Follow-up assigned." };
   } catch (e) {
     return fail(e);
   }

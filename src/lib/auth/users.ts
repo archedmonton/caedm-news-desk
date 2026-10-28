@@ -22,24 +22,25 @@ export async function createInvitation(
   if (!isAllowedEmail(email)) throw new Error(`Only @${env().ALLOWED_EMAIL_DOMAIN} addresses can be invited.`);
   const existing = db.select().from(users).where(eq(users.email, email)).get();
   if (existing?.status === "active") throw new Error("That person already has an active account.");
+  const role: Role = existing?.isDeveloper ? "admin" : input.role;
   const userId =
     existing?.id ??
-    db.insert(users).values({ email, role: input.role, status: "invited", createdAt: now, updatedAt: now }).returning({ id: users.id }).get().id;
-  if (existing) db.update(users).set({ role: input.role, status: "invited", updatedAt: now }).where(eq(users.id, userId)).run();
+    db.insert(users).values({ email, role, status: "invited", createdAt: now, updatedAt: now }).returning({ id: users.id }).get().id;
+  if (existing) db.update(users).set({ role, status: "invited", updatedAt: now }).where(eq(users.id, userId)).run();
   // Revoke previous outstanding invitations for this address.
   db.update(invitations).set({ revokedAt: now }).where(and(eq(invitations.email, email), isNull(invitations.acceptedAt), isNull(invitations.revokedAt))).run();
   const token = randomToken();
   const expiresAt = now + INVITE_TTL_MS;
-  db.insert(invitations).values({ email, role: input.role, tokenHash: sha256(token), invitedBy: input.invitedBy?.id ?? null, expiresAt, createdAt: now }).run();
+  db.insert(invitations).values({ email, role, tokenHash: sha256(token), invitedBy: input.invitedBy?.id ?? null, expiresAt, createdAt: now }).run();
   const inviteUrl = `${env().APP_URL}/invite/${token}`;
-  const rendered = renderInvite({ inviteUrl, role: input.role, invitedBy: input.invitedBy?.name || "A CAEDM News Desk administrator", expiresAt });
+  const rendered = renderInvite({ inviteUrl, role, invitedBy: input.invitedBy?.name || "A CAEDM News Desk administrator", expiresAt });
   const n = db
     .insert(notifications)
     .values({ kind: "invite", dedupeKey: `invite:${sha256(token).slice(0, 24)}`, recipient: email, ...rendered, status: "pending", meta: { userId }, createdAt: now })
     .returning({ id: notifications.id })
     .get();
   await deliverNotification(n.id, db, now);
-  audit("user.invited", "user", userId, input.invitedBy?.id ?? null, { email, role: input.role }, db);
+  audit("user.invited", "user", userId, input.invitedBy?.id ?? null, { email, role }, db);
   return { userId, inviteUrl, notificationId: n.id, expiresAt };
 }
 
@@ -89,8 +90,15 @@ export async function authenticate(emailRaw: string, password: string, db: DB = 
   return user;
 }
 
+function assertNotDeveloper(userId: number, db: DB) {
+  const target = db.select().from(users).where(eq(users.id, userId)).get();
+  if (!target) throw new Error("User not found.");
+  if (target.isDeveloper) throw new Error("The developer administrator account is protected and cannot be changed here.");
+}
+
 export function setUserStatus(userId: number, status: "active" | "disabled", actorId: number, db: DB = getDb()) {
   if (userId === actorId && status === "disabled") throw new Error("You cannot disable your own account.");
+  assertNotDeveloper(userId, db);
   db.update(users).set({ status, updatedAt: Date.now() }).where(eq(users.id, userId)).run();
   if (status === "disabled") db.delete(sessions).where(eq(sessions.userId, userId)).run();
   audit(`user.${status === "disabled" ? "disabled" : "enabled"}`, "user", userId, actorId, undefined, db);
@@ -98,6 +106,22 @@ export function setUserStatus(userId: number, status: "active" | "disabled", act
 
 export function setUserRole(userId: number, role: Role, actorId: number, db: DB = getDb()) {
   if (userId === actorId && role !== "admin") throw new Error("You cannot remove your own administrator role.");
+  assertNotDeveloper(userId, db);
   db.update(users).set({ role, updatedAt: Date.now() }).where(eq(users.id, userId)).run();
   audit("user.role_changed", "user", userId, actorId, { role }, db);
+}
+
+export type NotificationPreferences = {
+  notifyDigest: boolean;
+  notifyAlerts: "all" | "p0" | "none";
+  notifyAssignments: boolean;
+  notifyAccessRequests: boolean;
+};
+
+/** Each account manages its own name and email notification preferences. */
+export function updateOwnAccount(userId: number, input: { name: string } & NotificationPreferences, db: DB = getDb()) {
+  const name = input.name.trim().slice(0, 100);
+  if (!name) throw new Error("Please enter your name.");
+  db.update(users).set({ ...input, name, updatedAt: Date.now() }).where(eq(users.id, userId)).run();
+  audit("account.updated", "user", userId, userId, { ...input, name }, db);
 }

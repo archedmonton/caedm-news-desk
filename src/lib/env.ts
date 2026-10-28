@@ -24,6 +24,9 @@ const schema = z.object({
   GRAPH_CLIENT_ID: z.string().optional(),
   GRAPH_CLIENT_SECRET: z.string().optional(),
   GRAPH_SENDER: z.string().optional(),
+  /** Application developer: help & support contact, feature-request recipient, protected admin account. */
+  DEVELOPER_NAME: z.string().default("Ruban Peppin"),
+  DEVELOPER_EMAIL: z.string().email().default("ruban.peppin@caedm.ca"),
   FETCH_USER_AGENT: z
     .string()
     .default("CAEDM-NewsDesk/0.1 (+https://caedm.ca; communications monitoring; contact communications@caedm.ca)"),

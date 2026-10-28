@@ -21,8 +21,11 @@ npm run collect                   # fetch live news from the 4 pilot sources now
 npm run dev:all                   # web app + background worker
 ```
 
-Open **http://localhost:3000**. In the development sign-in panel, choose **Dev Administrator** or **Dev
-Communications**.
+Open **http://localhost:3000**. In the development sign-in panel, choose **Ruban Peppin** (developer admin), **Dev
+Administrator**, **Dev Manager**, **Dev Member** or **Dev Viewer**.
+
+Help & support: **Ruban Peppin**, ruban.peppin@caedm.ca. Use **Help** on the login screen or dashboard, and
+**Request a feature** inside the app.
 
 | Command | Purpose |
 |---|---|
@@ -34,7 +37,7 @@ Communications**.
 | `npm run collect [-- slug]` | Check all enabled sources now (or one, e.g. `vatican-news`) |
 | `npm run digest:preview` | Render the morning brief to `data/previews/*.html` (sends and records nothing) |
 | `npm run alerts:dry-run` | Show which stories would be alerted right now and why others are held |
-| `npm run admin:invite -- name@caedm.ca admin` | Operator bootstrap of an invitation link |
+| `npm run admin:invite -- name@caedm.ca [admin|manager|member|viewer]` | Operator bootstrap of an invitation link |
 | `npm run check` | Typecheck + lint + unit/integration tests |
 | `npm run test:e2e` | Playwright (desktop and mobile) against an isolated DB on port 3210 |
 | `npm run build && npm start` | Production build and server |

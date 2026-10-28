@@ -1,11 +1,16 @@
 import { AlertTriangle, ArrowRight, CheckCircle2, CircleAlert, Clock, Inbox, Newspaper } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AccessRequestsCard } from "@/components/access-requests";
 import { HealthBadge, sourceHealth } from "@/components/badges";
+import { HelpTrigger } from "@/components/help";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, StoryRow } from "@/components/story-row";
 import { Card, CardHeader } from "@/components/ui/primitives";
+import { can } from "@/lib/auth/permissions";
+import { requireUser } from "@/lib/auth/session";
 import { getOverview } from "@/lib/queries";
+import { listAccessRequests } from "@/lib/requests";
 import { getSettings } from "@/lib/settings";
 import { formatDateTime, formatLongDate, formatRelative } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -23,8 +28,11 @@ function Stat({ label, value, sub, href, tone }: { label: string; value: number 
 }
 
 export default async function OverviewPage() {
+  const user = await requireUser();
   const now = Date.now();
   const o = getOverview(now);
+  const requests = can(user.role, "manage_staff") ? listAccessRequests("dashboard") : [];
+  const canReview = can(user.role, "review_news");
   const settings = getSettings();
   const healthy = o.sources.filter((s) => sourceHealth(s) === "healthy").length;
   const enabled = o.sources.filter((s) => s.enabled);
@@ -33,7 +41,22 @@ export default async function OverviewPage() {
 
   return (
     <>
-      <PageHeader title="Overview" description={`${formatLongDate(now)} · Edmonton`} />
+      <PageHeader
+        title="Overview"
+        description={`${formatLongDate(now)} · Edmonton`}
+        actions={
+          <>
+            <HelpTrigger label="Help: about this dashboard" />
+            <HelpTrigger view="feature" variant="ghost" />
+          </>
+        }
+      />
+
+      {requests.length ? (
+        <div className="mb-6">
+          <AccessRequestsCard rows={requests} title="People asking to join" />
+        </div>
+      ) : null}
 
       {workerStale || problems.length || o.failedDeliveries ? (
         <div className="mb-6 space-y-2">
@@ -92,7 +115,7 @@ export default async function OverviewPage() {
               }
             />
             {o.highPriority.length ? (
-              <div className="divide-y divide-line">{o.highPriority.map((s) => <StoryRow key={s.id} s={s} />)}</div>
+              <div className="divide-y divide-line">{o.highPriority.map((s) => <StoryRow key={s.id} s={s} canReview={canReview} />)}</div>
             ) : (
               <EmptyState title="No open high-priority stories" icon={<CheckCircle2 className="size-6" />}>
                 New P0/P1 developments will appear here and trigger an email alert during alert hours.

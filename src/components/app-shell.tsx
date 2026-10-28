@@ -1,9 +1,10 @@
 "use client";
 
-import { ClipboardList, Inbox, LayoutDashboard, LogOut, Menu, Newspaper, Radio, Settings, X } from "lucide-react";
+import { ClipboardList, Inbox, LayoutDashboard, LogOut, Menu, Newspaper, Radio, Settings, UserCog, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as React from "react";
+import { HelpProvider, HelpTrigger } from "@/components/help";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -20,12 +21,16 @@ function isActive(pathname: string, href: string) {
 
 export function AppShell({
   user,
+  roleLabel,
+  developer,
   counts,
   logoutAction,
   children,
 }: {
   user: { name: string; email: string; role: string };
-  counts: { followUps: number; outboxFailed: number };
+  roleLabel: string;
+  developer: { name: string; email: string };
+  counts: { followUps: number; outboxFailed: number; accessRequests: number };
   logoutAction: () => Promise<void>;
   children: React.ReactNode;
 }) {
@@ -50,6 +55,11 @@ export function AppShell({
           {href === "/follow-ups" && counts.followUps > 0 ? (
             <span className="rounded-full bg-white/15 px-1.5 text-[11px] text-white">{counts.followUps}</span>
           ) : null}
+          {href === "/" && counts.accessRequests > 0 ? (
+            <span className="rounded-full bg-gold-500 px-1.5 text-[11px] text-white" title="Pending access requests">
+              {counts.accessRequests}
+            </span>
+          ) : null}
         </Link>
       ))}
       <div className="mt-4 border-t border-white/10 pt-4">
@@ -65,6 +75,19 @@ export function AppShell({
           <span className="flex-1">Email outbox</span>
           {counts.outboxFailed > 0 ? <span className="rounded-full bg-p0 px-1.5 text-[11px] text-white">{counts.outboxFailed}</span> : null}
         </Link>
+        <Link
+          href="/account"
+          aria-current={isActive(pathname, "/account") ? "page" : undefined}
+          className={cn(
+            "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-navy-100/80 hover:bg-white/5 hover:text-white",
+            isActive(pathname, "/account") && "bg-white/10 font-medium text-white",
+          )}
+        >
+          <UserCog className="size-4" aria-hidden />
+          <span className="flex-1">My account</span>
+        </Link>
+        <HelpTrigger variant="sidebar" label="Help & support" />
+        <HelpTrigger variant="sidebar" view="feature" />
       </div>
     </nav>
   );
@@ -80,7 +103,7 @@ export function AppShell({
     <div className="border-t border-white/10 pt-4">
       <div className="truncate text-sm font-medium text-white">{user.name || user.email}</div>
       <div className="truncate text-xs text-navy-100/70">
-        {user.role === "admin" ? "Administrator" : "Communications"} · {user.email}
+        {roleLabel} · {user.email}
       </div>
       <form action={logoutAction} className="mt-2">
         <button className="flex items-center gap-1.5 text-xs text-navy-100/70 hover:text-white" type="submit">
@@ -91,6 +114,7 @@ export function AppShell({
   );
 
   return (
+    <HelpProvider developer={developer} signedIn>
     <div className="min-h-dvh lg:pl-60">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-white focus:px-3 focus:py-2">
         Skip to content
@@ -125,5 +149,6 @@ export function AppShell({
         {children}
       </main>
     </div>
+    </HelpProvider>
   );
 }

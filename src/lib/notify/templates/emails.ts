@@ -156,3 +156,102 @@ export function renderInvite(opts: { inviteUrl: string; role: string; invitedBy:
   const text = `${subject}\n\n${opts.invitedBy} invited you as ${opts.role}.\nAccept: ${opts.inviteUrl}\nExpires ${formatDateTime(opts.expiresAt)}.`;
   return { subject, html, text };
 }
+
+function detailRows(rows: [string, string][]) {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0;font-size:14px;line-height:1.5">${rows
+    .map(([k, v]) => `<tr><td style="padding:4px 16px 4px 0;color:${COLORS.muted};vertical-align:top;white-space:nowrap">${esc(k)}</td><td style="padding:4px 0;white-space:pre-wrap">${esc(v)}</td></tr>`)
+    .join("")}</table>`;
+}
+
+function button(href: string, label: string) {
+  return `<p style="margin:20px 0"><a href="${safeHref(href)}" style="display:inline-block;padding:10px 18px;background:${COLORS.accent};color:#fff;border-radius:6px;text-decoration:none;font-weight:600">${esc(label)}</a></p>`;
+}
+
+export function renderAssignment(opts: {
+  storyTitle: string;
+  storyUrl: string;
+  storyId: number;
+  priority: Priority;
+  assignedBy: string;
+  dueAt: number | null;
+  note?: string | null;
+  appUrl: string;
+}): RenderedEmail {
+  const subject = `Follow-up assigned to you: ${opts.storyTitle}`.slice(0, 200);
+  const rows: [string, string][] = [
+    ["Story", opts.storyTitle],
+    ["Priority", opts.priority],
+    ["Assigned by", opts.assignedBy],
+    ["Due", opts.dueAt ? `${formatDateTime(opts.dueAt)} (Edmonton)` : "No due date"],
+  ];
+  if (opts.note) rows.push(["Note", opts.note]);
+  const html = emailLayout({
+    title: "Follow-up assigned to you",
+    preheader: opts.storyTitle,
+    body: `${detailRows(rows)}${button(`${opts.appUrl}/news/${opts.storyId}#follow-up`, "Open in News Desk")}<p style="font-size:13px"><a href="${safeHref(opts.storyUrl)}" style="color:${COLORS.accent}">Original source</a></p>`,
+    footerNote: "You receive this because follow-up assignment emails are on in your account settings.",
+  });
+  const text = [subject, "", ...rows.map(([k, v]) => `${k}: ${v}`), "", `${opts.appUrl}/news/${opts.storyId}`].join("\n");
+  return { subject, html, text };
+}
+
+export function renderAccessRequest(opts: {
+  name: string;
+  email: string;
+  department: string;
+  requestedRole: string;
+  reason: string;
+  createdAt: number;
+  appUrl: string;
+}): RenderedEmail {
+  const subject = `Access request: ${opts.name} (${opts.email})`;
+  const rows: [string, string][] = [
+    ["Name", opts.name],
+    ["Work email", opts.email],
+    ["Department / role", opts.department || "—"],
+    ["Requested access", opts.requestedRole],
+    ["Reason", opts.reason || "—"],
+    ["Received", `${formatDateTime(opts.createdAt)} (Edmonton)`],
+  ];
+  const html = emailLayout({
+    title: "New access request",
+    preheader: `${opts.name} wants to join CAEDM News Desk`,
+    body: `<p style="font-size:14px;margin-top:16px">Someone asked to join CAEDM News Desk. Review the request on your dashboard. No account exists until an administrator approves it.</p>${detailRows(rows)}${button(`${opts.appUrl}/`, "Review on dashboard")}`,
+    footerNote: "Sent to administrators with access-request emails turned on.",
+  });
+  const text = [subject, "", ...rows.map(([k, v]) => `${k}: ${v}`), "", `Review: ${opts.appUrl}/`].join("\n");
+  return { subject, html, text };
+}
+
+export function renderFeatureRequest(opts: {
+  id: number;
+  title: string;
+  description: string;
+  category: string;
+  importance: string;
+  requester: string;
+  page: string | null;
+  createdAt: number;
+  developerName: string;
+  appUrl: string;
+}): RenderedEmail {
+  const subject = `[CAEDM News Desk] Feature request #${opts.id}: ${opts.title}`.slice(0, 200);
+  const rows: [string, string][] = [
+    ["Request", `#${opts.id}`],
+    ["Title", opts.title],
+    ["Type", opts.category],
+    ["Importance", opts.importance],
+    ["From", opts.requester],
+    ["Page", opts.page ?? "—"],
+    ["Submitted", `${formatDateTime(opts.createdAt)} (Edmonton)`],
+    ["Details", opts.description],
+  ];
+  const html = emailLayout({
+    title: "Feature request",
+    preheader: opts.title,
+    body: `<p style="font-size:14px;margin-top:16px">Hello ${esc(opts.developerName)}, a News Desk user submitted a request.</p>${detailRows(rows)}${button(`${opts.appUrl}/settings#feature-requests`, "View all requests")}`,
+    footerNote: "Reply to the requester directly at the address above.",
+  });
+  const text = [subject, "", ...rows.map(([k, v]) => `${k}: ${v}`), "", `${opts.appUrl}/settings#feature-requests`].join("\n");
+  return { subject, html, text };
+}

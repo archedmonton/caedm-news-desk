@@ -6,6 +6,8 @@ import { ActionForm, SubmitButton } from "@/components/forms";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, StoryRow } from "@/components/story-row";
 import { Button, Card, Field, Input, Select } from "@/components/ui/primitives";
+import { can } from "@/lib/auth/permissions";
+import { requireUser } from "@/lib/auth/session";
 import { listSourceOptions, listStories } from "@/lib/queries";
 import { param } from "@/lib/utils";
 
@@ -14,6 +16,8 @@ export const metadata: Metadata = { title: "News Feed" };
 type SP = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function NewsPage({ searchParams }: { searchParams: SP }) {
+  const user = await requireUser();
+  const canReview = can(user.role, "review_news");
   const sp = await searchParams;
   const f = {
     q: param(sp, "q"),
@@ -112,7 +116,7 @@ export default async function NewsPage({ searchParams }: { searchParams: SP }) {
 
       <Card>
         {items.length ? (
-          <div className="divide-y divide-line">{items.map((s) => <StoryRow key={s.id} s={s} />)}</div>
+          <div className="divide-y divide-line">{items.map((s) => <StoryRow key={s.id} s={s} canReview={canReview} />)}</div>
         ) : (
           <EmptyState title={hasFilters ? "No stories match these filters" : "No stories yet"} icon={<Newspaper className="size-6" />}>
             {hasFilters ? "Try widening the date range or clearing filters." : "Stories appear once sources are checked (the worker does this automatically)."}
@@ -135,6 +139,7 @@ export default async function NewsPage({ searchParams }: { searchParams: SP }) {
         </nav>
       ) : null}
 
+      {can(user.role, "submit_links") ? (
       <Card className="mt-8 p-5">
         <h2 className="text-[15px] font-semibold">Submit a link</h2>
         <p className="mt-0.5 text-[13px] text-muted">
@@ -156,6 +161,7 @@ export default async function NewsPage({ searchParams }: { searchParams: SP }) {
           </div>
         </ActionForm>
       </Card>
+      ) : null}
     </>
   );
 }

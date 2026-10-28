@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
 import { inviteStaffAction, reclassifyAction, savePriorityRulesAction, saveSettingsAction, setStaffRoleAction, setStaffStatusAction } from "@/actions/admin";
+import { setFeatureRequestStatusAction } from "@/actions/requests";
+import { AccessRequestsCard } from "@/components/access-requests";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { PageHeader } from "@/components/page-header";
 import { Badge, Card, CardHeader, Checkbox, Field, Input, Select, Textarea } from "@/components/ui/primitives";
 import { productionAccess } from "@/lib/auth/access";
-import { can } from "@/lib/auth/permissions";
+import { can, ROLE_DESCRIPTIONS, ROLE_LABELS } from "@/lib/auth/permissions";
+import { FEATURE_REQUEST_STATUSES, ROLES } from "@/lib/db/schema";
+import { developerContact } from "@/lib/developer";
+import { FEATURE_CATEGORY_LABELS, FEATURE_IMPORTANCE_LABELS, listAccessRequests, listFeatureRequests } from "@/lib/requests";
 import { requireUser } from "@/lib/auth/session";
 import { env } from "@/lib/env";
 import { liveEmailStatus } from "@/lib/notify/transport";
@@ -23,6 +28,9 @@ export default async function SettingsPage() {
   const access = productionAccess();
   const staff = admin ? listStaff() : [];
   const audit = admin ? recentAudit(40) : [];
+  const requests = admin ? listAccessRequests("all") : [];
+  const features = admin ? listFeatureRequests() : [];
+  const developer = developerContact();
   const ro = !admin;
 
   return (
@@ -179,15 +187,26 @@ export default async function SettingsPage() {
         {admin ? (
           <>
             <Card>
-              <CardHeader title="Staff access" description={`Invitation only. Only @${env().ALLOWED_EMAIL_DOMAIN} addresses can be invited.`} />
+              <CardHeader title="Staff access" description={`Invitation only: administrators add people. Only @${env().ALLOWED_EMAIL_DOMAIN} work emails can be invited.`} />
+              <dl className="grid gap-x-6 gap-y-2 border-b border-line px-5 py-4 text-xs sm:grid-cols-2">
+                {ROLES.map((r) => (
+                  <div key={r}>
+                    <dt className="font-semibold text-ink">{ROLE_LABELS[r]}</dt>
+                    <dd className="text-muted">{ROLE_DESCRIPTIONS[r]}</dd>
+                  </div>
+                ))}
+              </dl>
               <ActionForm action={inviteStaffAction} resetOnSuccess className="flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-end">
                 <Field label="Email" htmlFor="invite-email" className="flex-1">
                   <Input id="invite-email" name="email" type="email" required placeholder={`name@${env().ALLOWED_EMAIL_DOMAIN}`} />
                 </Field>
                 <Field label="Role" htmlFor="invite-role">
-                  <Select id="invite-role" name="role" defaultValue="communications">
-                    <option value="communications">Communications</option>
-                    <option value="admin">Administrator</option>
+                  <Select id="invite-role" name="role" defaultValue="member">
+                    {[...ROLES].reverse().map((r) => (
+                      <option key={r} value={r}>
+                        {ROLE_LABELS[r]}
+                      </option>
+                    ))}
                   </Select>
                 </Field>
                 <SubmitButton pendingText="Inviting…">Send invitation</SubmitButton>
@@ -209,17 +228,23 @@ export default async function SettingsPage() {
                     {staff.map((u) => (
                       <tr key={u.id}>
                         <td className="px-5 py-2.5">
-                          <div className="font-medium text-ink">{u.name || "—"}</div>
+                          <div className="font-medium text-ink">
+                            {u.name || "—"}
+                            {u.isDeveloper ? <Badge className="ml-2 border-gold-500/40 bg-gold-100 text-gold-500">Developer</Badge> : null}
+                          </div>
                           <div className="text-xs text-muted">{u.email}</div>
                         </td>
                         <td className="px-3 py-2.5">
                           <form action={setStaffRoleAction} className="flex items-center gap-1">
                             <input type="hidden" name="userId" value={u.id} />
-                            <Select name="role" defaultValue={u.role} aria-label={`Role for ${u.email}`} className="h-8 w-40 text-xs" disabled={u.id === user.id}>
-                              <option value="communications">Communications</option>
-                              <option value="admin">Administrator</option>
+                            <Select name="role" defaultValue={u.role} aria-label={`Role for ${u.email}`} className="h-8 w-40 text-xs" disabled={u.id === user.id || u.isDeveloper}>
+                              {ROLES.map((r) => (
+                                <option key={r} value={r}>
+                                  {ROLE_LABELS[r]}
+                                </option>
+                              ))}
                             </Select>
-                            {u.id !== user.id ? (
+                            {u.id !== user.id && !u.isDeveloper ? (
                               <SubmitButton variant="ghost" size="xs">
                                 Save
                               </SubmitButton>
@@ -229,7 +254,7 @@ export default async function SettingsPage() {
                         <td className="px-3 py-2.5 capitalize">{u.status}</td>
                         <td className="px-3 py-2.5 text-muted">{formatDateTime(u.lastLoginAt)}</td>
                         <td className="px-5 py-2.5 text-right">
-                          {u.id !== user.id && u.status !== "invited" ? (
+                          {u.id !== user.id && u.status !== "invited" && !u.isDeveloper ? (
                             <form action={setStaffStatusAction}>
                               <input type="hidden" name="userId" value={u.id} />
                               <input type="hidden" name="status" value={u.status === "disabled" ? "active" : "disabled"} />
@@ -244,6 +269,45 @@ export default async function SettingsPage() {
                   </tbody>
                 </table>
               </div>
+            </Card>
+
+            {requests.length ? <AccessRequestsCard rows={requests} title="Access requests (history)" /> : null}
+
+            <Card id="feature-requests">
+              <CardHeader title="Feature requests" description={`Sent to the developer, ${developer.name} (${developer.email}).`} />
+              {features.length === 0 ? (
+                <p className="px-5 py-6 text-sm text-muted">No feature requests yet. Anyone can send one from Help &amp; support.</p>
+              ) : (
+                <ul className="divide-y divide-line">
+                  {features.map(({ f, delivery }) => (
+                    <li key={f.id} className="flex flex-col gap-2 px-5 py-3 text-sm md:flex-row md:items-start md:justify-between">
+                      <div className="min-w-0">
+                        <div className="font-medium text-ink">
+                          #{f.id} {f.title}
+                        </div>
+                        <div className="text-xs text-muted">
+                          {FEATURE_CATEGORY_LABELS[f.category]} · {FEATURE_IMPORTANCE_LABELS[f.importance]} · {f.requesterEmail} · {formatDateTime(f.createdAt)} · email{" "}
+                          {delivery ?? "not sent"}
+                        </div>
+                        <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-muted">{f.description}</p>
+                      </div>
+                      <form action={setFeatureRequestStatusAction} className="flex shrink-0 items-center gap-1">
+                        <input type="hidden" name="requestId" value={f.id} />
+                        <Select name="status" defaultValue={f.status} aria-label={`Status of request ${f.id}`} className="h-8 w-36 text-xs">
+                          {FEATURE_REQUEST_STATUSES.map((st) => (
+                            <option key={st} value={st}>
+                              {st[0].toUpperCase() + st.slice(1)}
+                            </option>
+                          ))}
+                        </Select>
+                        <SubmitButton variant="ghost" size="xs">
+                          Save
+                        </SubmitButton>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </Card>
 
             <Card>

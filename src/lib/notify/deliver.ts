@@ -22,7 +22,8 @@ export async function deliverNotification(id: number, db: DB = getDb(), now = Da
       .run();
   } else {
     try {
-      await transport.send({ to: n.recipient, subject: n.subject, html: n.html, text: n.text });
+      const replyTo = typeof n.meta?.replyTo === "string" ? n.meta.replyTo : undefined;
+      await transport.send({ to: n.recipient, subject: n.subject, html: n.html, text: n.text, replyTo });
       db.update(notifications)
         .set({ status: "sent", transport: transport.name, attempts, sentAt: Date.now(), lastError: null, nextAttemptAt: null })
         .where(eq(notifications.id, id))

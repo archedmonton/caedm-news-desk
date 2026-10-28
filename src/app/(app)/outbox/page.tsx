@@ -30,13 +30,18 @@ const KINDS = [
   { key: "alert", label: "Alerts" },
   { key: "invite", label: "Invitations" },
   { key: "test", label: "Previews" },
+  { key: "assignment", label: "Assignments" },
+  { key: "feature_request", label: "Feature requests" },
+  { key: "access_request", label: "Access requests" },
 ];
 
 export default async function OutboxPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireUser();
   const admin = can(user.role, "send_test_notifications");
   const kind = param(await searchParams, "kind");
-  const rows = listNotifications(kind || undefined);
+  // Invitations and access requests contain personal details or sign-up links: administrators only.
+  const isAdmin = can(user.role, "manage_staff");
+  const rows = listNotifications(kind || undefined).filter((n) => isAdmin || (n.kind !== "invite" && n.kind !== "access_request"));
   const mail = liveEmailStatus();
   const ev = evaluateAlerts();
 
@@ -158,7 +163,7 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
                 {rows.map((n) => (
                   <tr key={n.id} data-testid="outbox-row">
                     <td className="whitespace-nowrap px-5 py-2.5 text-muted">{formatDateTime(n.createdAt)}</td>
-                    <td className="px-3 py-2.5 capitalize">{n.kind === "test" ? "preview" : n.kind}</td>
+                    <td className="px-3 py-2.5 capitalize">{n.kind === "test" ? "preview" : n.kind.replace("_", " ")}</td>
                     <td className="px-3 py-2.5">
                       <Link href={`/outbox/${n.id}`} className="font-medium text-ink hover:text-navy-700 hover:underline">
                         {n.subject}

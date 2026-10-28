@@ -152,3 +152,14 @@ of done:
 Expanded partner monitoring, newsletter ingestion, event discovery, editorial calendar, coverage analytics,
 historical intelligence, local AI-assisted classification and summaries, draft generation, editorial
 approvals, social publishing integrations, and AI Communications Hub integration.
+
+## Change request: 2026-10-28 (approved by the project owner)
+
+1. ruban.peppin@caedm.ca is the developer administrator account.
+2. Role-based access: Administrator, Manager, Member, Viewer (replaces "Communications").
+3. Only administrators add people. Every account sets its own email notifications.
+4. Sign-in is by work email. People without an account can request access, and administrators see the
+   requester's details on their dashboard.
+5. Contextual help on the login screen and the dashboard, naming the developer (Ruban Peppin,
+   ruban.peppin@caedm.ca) for help and support.
+6. A Request a feature form that emails the request to the developer.

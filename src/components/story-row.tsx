@@ -20,7 +20,8 @@ function StatusButton({ storyId, status, label, icon }: { storyId: number; statu
   );
 }
 
-export function StoryRow({ s, actions = true }: { s: StoryListItem; actions?: boolean }) {
+/** `canReview` controls workflow buttons; viewers still get the "Original" link. */
+export function StoryRow({ s, actions = true, canReview = false }: { s: StoryListItem; actions?: boolean; canReview?: boolean }) {
   const when = s.publishedAt ?? s.firstDetectedAt;
   return (
     <article className="group flex flex-col gap-2 px-5 py-4" data-testid="story-row">
@@ -48,11 +49,13 @@ export function StoryRow({ s, actions = true }: { s: StoryListItem; actions?: bo
                 <ExternalLink /> Original
               </a>
             </Button>
-            {s.reviewStatus === "new" ? <StatusButton storyId={s.id} status="reviewing" label="Mark reviewed" icon={<Check />} /> : null}
-            <Button asChild variant="ghost" size="xs">
-              <Link href={`/news/${s.id}#follow-up`}>Assign</Link>
-            </Button>
-            {s.reviewStatus !== "archived" ? <StatusButton storyId={s.id} status="archived" label="Archive" icon={<Archive />} /> : null}
+            {canReview && s.reviewStatus === "new" ? <StatusButton storyId={s.id} status="reviewing" label="Mark reviewed" icon={<Check />} /> : null}
+            {canReview ? (
+              <Button asChild variant="ghost" size="xs">
+                <Link href={`/news/${s.id}#follow-up`}>Assign</Link>
+              </Button>
+            ) : null}
+            {canReview && s.reviewStatus !== "archived" ? <StatusButton storyId={s.id} status="archived" label="Archive" icon={<Archive />} /> : null}
           </div>
         ) : null}
       </div>

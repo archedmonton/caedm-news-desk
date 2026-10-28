@@ -5,7 +5,8 @@ import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlit
 const now = sql`(unixepoch('subsec') * 1000)`;
 const ts = (name: string) => integer(name, { mode: "number" });
 
-export const ROLES = ["admin", "communications"] as const;
+/** Highest to lowest. "communications" (MVP) was migrated to "manager". */
+export const ROLES = ["admin", "manager", "member", "viewer"] as const;
 export type Role = (typeof ROLES)[number];
 
 export const PRIORITIES = ["P0", "P1", "P2", "P3"] as const;
@@ -37,9 +38,19 @@ export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   email: text("email").notNull().unique(),
   name: text("name").notNull().default(""),
-  role: text("role", { enum: ROLES }).notNull().default("communications"),
+  role: text("role", { enum: ROLES })
+    .notNull()
+    .default("member")
+    .$defaultFn(() => "member"),
   status: text("status", { enum: ["invited", "active", "disabled"] }).notNull().default("invited"),
   passwordHash: text("password_hash"),
+  /** The application's developer (help & support contact). Protected from demotion/disablement. */
+  isDeveloper: integer("is_developer", { mode: "boolean" }).notNull().default(false),
+  // Personal email notification preferences (in addition to the team mailbox in Settings).
+  notifyDigest: integer("notify_digest", { mode: "boolean" }).notNull().default(false),
+  notifyAlerts: text("notify_alerts", { enum: ["all", "p0", "none"] }).notNull().default("none"),
+  notifyAssignments: integer("notify_assignments", { mode: "boolean" }).notNull().default(true),
+  notifyAccessRequests: integer("notify_access_requests", { mode: "boolean" }).notNull().default(true),
   failedLogins: integer("failed_logins").notNull().default(0),
   lockedUntil: ts("locked_until"),
   lastLoginAt: ts("last_login_at"),
@@ -211,6 +222,8 @@ export const followUpNotes = sqliteTable(
   (t) => [index("follow_up_notes_fu_idx").on(t.followUpId)],
 );
 
+export const NOTIFICATION_KINDS = ["digest", "alert", "invite", "test", "assignment", "access_request", "feature_request"] as const;
+
 export const NOTIFICATION_STATUSES = ["pending", "simulated", "sent", "failed", "skipped"] as const;
 export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number];
 
@@ -218,7 +231,7 @@ export const notifications = sqliteTable(
   "notifications",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    kind: text("kind", { enum: ["digest", "alert", "invite", "test"] }).notNull(),
+    kind: text("kind", { enum: NOTIFICATION_KINDS }).notNull(),
     dedupeKey: text("dedupe_key").notNull().unique(),
     recipient: text("recipient").notNull(),
     subject: text("subject").notNull(),
@@ -293,6 +306,44 @@ export const applicationSettings = sqliteTable("application_settings", {
   updatedAt: ts("updated_at").notNull().default(now),
   updatedBy: integer("updated_by").references(() => users.id),
 });
+
+export const accessRequests = sqliteTable(
+  "access_requests",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    email: text("email").notNull(),
+    name: text("name").notNull(),
+    department: text("department").notNull().default(""),
+    requestedRole: text("requested_role", { enum: ROLES }).notNull().default("member"),
+    reason: text("reason").notNull().default(""),
+    status: text("status", { enum: ["pending", "approved", "declined"] }).notNull().default("pending"),
+    reviewedBy: integer("reviewed_by").references(() => users.id),
+    reviewedAt: ts("reviewed_at"),
+    grantedRole: text("granted_role", { enum: ROLES }),
+    createdAt: ts("created_at").notNull().default(now),
+  },
+  (t) => [index("access_requests_status_idx").on(t.status, t.createdAt), index("access_requests_email_idx").on(t.email)],
+);
+
+export const FEATURE_REQUEST_STATUSES = ["new", "acknowledged", "planned", "done", "declined"] as const;
+
+export const featureRequests = sqliteTable(
+  "feature_requests",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    title: text("title").notNull(),
+    description: text("description").notNull(),
+    category: text("category", { enum: ["feature", "improvement", "bug", "source", "other"] }).notNull().default("feature"),
+    importance: text("importance", { enum: ["nice_to_have", "important", "urgent"] }).notNull().default("important"),
+    requesterId: integer("requester_id").references(() => users.id),
+    requesterEmail: text("requester_email").notNull(),
+    page: text("page"),
+    status: text("status", { enum: FEATURE_REQUEST_STATUSES }).notNull().default("new"),
+    notificationId: integer("notification_id").references(() => notifications.id),
+    createdAt: ts("created_at").notNull().default(now),
+  },
+  (t) => [index("feature_requests_created_idx").on(t.createdAt)],
+);
 
 export type User = typeof users.$inferSelect;
 export type Source = typeof sources.$inferSelect;

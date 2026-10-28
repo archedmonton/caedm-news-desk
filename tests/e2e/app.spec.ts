@@ -11,7 +11,7 @@ test("unauthenticated visitors are redirected to sign-in", async ({ page }) => {
 
 test("overview shows monitoring summary", async ({ page }) => {
   await devSignIn(page);
-  await expect(page.getByText("High-priority open")).toBeVisible();
+  await expect(page.getByRole("main").getByText("High-priority open", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "High-priority alerts" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Morning brief" })).toBeVisible();
   // Sample P0 story appears among high-priority alerts.
@@ -57,11 +57,11 @@ test("review workflow: mark reviewed, override priority, assign follow-up, add n
   await expect(page.getByText(/Priority set to P1/)).toBeVisible();
   await expect(page.getByText(/Manual override: Archbishop attending/)).toBeVisible();
 
-  await page.getByLabel("Assignee").selectOption({ label: "Dev Communications" });
+  await page.getByLabel("Assignee").selectOption({ label: "Dev Member" });
   await page.getByLabel("Due date").fill("2030-01-15");
   await page.getByLabel("Note (optional)").fill("Prepare a social post");
   await page.getByRole("button", { name: "Assign follow-up" }).click();
-  await expect(page.getByText("Follow-up assigned.")).toBeVisible();
+  await expect(page.getByText(/Follow-up assigned\. The assignee was notified by email\./)).toBeVisible();
   await expect(page.getByText("Prepare a social post")).toBeVisible();
 
   await page.getByLabel("New note").fill("Photographer confirmed");
@@ -70,7 +70,7 @@ test("review workflow: mark reviewed, override priority, assign follow-up, add n
 
   await page.getByRole("link", { name: "Follow-ups" }).first().click();
   const fu = page.getByTestId("follow-up-row").filter({ hasText: "Advent concert" });
-  await expect(fu).toContainText("Dev Communications");
+  await expect(fu).toContainText("Dev Member");
   await expect(fu).toContainText("Jan 15, 2030");
   await fu.getByRole("button", { name: "Mark covered" }).click();
   await expect(page.getByTestId("follow-up-row").filter({ hasText: "Advent concert" })).toHaveCount(0);
@@ -168,7 +168,7 @@ test("settings save and staff invitation flow with password sign-in", async ({ p
   await expect(page.getByText(/invalid, expired or already used/)).toBeVisible();
 
   await page.goto("/login");
-  await page.getByLabel("Work email").fill("new.staff@caedm.ca");
+  await page.locator("#email").fill("new.staff@caedm.ca");
   await page.getByLabel("Password").fill("wrong password!!");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByText("Email or password is incorrect.")).toBeVisible();
@@ -177,12 +177,28 @@ test("settings save and staff invitation flow with password sign-in", async ({ p
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 });
 
-test("communications role cannot manage staff or sources", async ({ page }) => {
-  await devSignIn(page, "Dev Communications");
+test("members can review but not manage; viewers are read-only", async ({ page }) => {
+  await devSignIn(page, "Dev Member");
   await page.goto("/settings");
   await expect(page.getByText("Only administrators can change settings.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Staff access" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Save briefing" })).toHaveCount(0);
   await page.goto("/sources");
-  await expect(page.getByRole("button", { name: /monitoring/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /monitoring|Check now/ })).toHaveCount(0);
+  await page.goto("/news?q=Misericordia");
+  await expect(page.getByTestId("story-row").first().getByRole("button", { name: /Mark reviewed/ })).toBeVisible();
+  await page.getByTestId("story-row").first().getByRole("heading").getByRole("link").click();
+  await expect(page.getByRole("heading", { name: "Workflow" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Change priority" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Sign out" }).first().click();
+  await devSignIn(page, "Dev Viewer");
+  await page.goto("/news?q=Misericordia");
+  const row = page.getByTestId("story-row").first();
+  await expect(row.getByRole("link", { name: /Open original source/ })).toBeVisible();
+  await expect(row.getByRole("button")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Submit a link" })).toHaveCount(0);
+  await row.getByRole("heading").getByRole("link").click();
+  await expect(page.getByRole("heading", { name: "Why this priority" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workflow" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Assign follow-up|Add note/ })).toHaveCount(0);
 });

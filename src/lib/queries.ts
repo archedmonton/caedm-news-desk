@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gte, inArray, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import { getDb } from "./db/client";
 import {
+  accessRequests,
   auditLogs,
   followUpNotes,
   followUps,
@@ -382,6 +383,7 @@ export function shellCounts() {
     .from(notifications)
     .where(and(eq(notifications.status, "failed"), gte(notifications.createdAt, Date.now() - 7 * 24 * 3600_000)))
     .get()!.n;
-  return { followUps: followUpsOpen, outboxFailed };
+  const accessRequestsPending = db.select({ n: sql<number>`count(*)` }).from(accessRequests).where(eq(accessRequests.status, "pending")).get()!.n;
+  return { followUps: followUpsOpen, outboxFailed, accessRequests: accessRequestsPending };
 }
 

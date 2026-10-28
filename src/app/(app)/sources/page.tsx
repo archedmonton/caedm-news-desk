@@ -18,6 +18,7 @@ const METHOD_LABEL: Record<string, string> = { rss: "RSS feed", html: "Newsroom 
 export default async function SourcesPage() {
   const user = await requireUser();
   const isAdmin = can(user.role, "manage_sources");
+  const canCheck = can(user.role, "check_sources");
   const all = listSources();
   const monitored = all.filter((s) => s.verified);
   const expansion = all.filter((s) => !s.verified);
@@ -83,8 +84,9 @@ export default async function SourcesPage() {
                   {s.feedUrl ? <p className="mt-3 break-all text-xs text-subtle">Monitored URL: {s.feedUrl}</p> : null}
                   {s.notes ? <p className="mt-1 text-xs text-subtle">{s.notes}</p> : null}
                 </div>
-                {isAdmin && s.method !== "manual" ? (
+                {canCheck && s.method !== "manual" ? (
                   <div className="flex shrink-0 flex-col items-stretch gap-2 md:w-44">
+                    {isAdmin ? (
                     <form action={toggleSourceAction}>
                       <input type="hidden" name="sourceId" value={s.id} />
                       <input type="hidden" name="enabled" value={s.enabled ? "false" : "true"} />
@@ -92,6 +94,7 @@ export default async function SourcesPage() {
                         {s.enabled ? "Disable monitoring" : "Enable monitoring"}
                       </SubmitButton>
                     </form>
+                    ) : null}
                     <ActionForm action={checkSourceNowAction}>
                       <input type="hidden" name="sourceId" value={s.id} />
                       <SubmitButton variant="outline" size="sm" className="w-full" pendingText="Checking…">

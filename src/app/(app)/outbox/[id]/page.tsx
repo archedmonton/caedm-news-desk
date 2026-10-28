@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { EmailFrame } from "@/components/email-frame";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader } from "@/components/ui/primitives";
+import { can } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
 import { getNotification } from "@/lib/queries";
 import { formatDateTime } from "@/lib/time";
@@ -12,12 +13,11 @@ import { formatDateTime } from "@/lib/time";
 export const metadata: Metadata = { title: "Email" };
 
 export default async function NotificationPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireUser();
+  const user = await requireUser();
   const n = getNotification(Number((await params).id));
   if (!n) notFound();
-  // Invitation emails contain a one-time sign-up link; show them only to administrators.
-  const user = await requireUser();
-  const hideBody = n.kind === "invite" && user.role !== "admin";
+  // Invitation and access-request emails contain sign-up links or personal details: administrators only.
+  if ((n.kind === "invite" || n.kind === "access_request") && !can(user.role, "manage_staff")) notFound();
 
   return (
     <>
@@ -27,9 +27,7 @@ export default async function NotificationPage({ params }: { params: Promise<{ i
       <PageHeader title={n.subject} description={`To ${n.recipient} · ${formatDateTime(n.createdAt)}`} />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          {hideBody ? (
-            <Card className="p-6 text-sm text-muted">Invitation content is visible to administrators only.</Card>
-          ) : n.html ? (
+          {n.html ? (
             <EmailFrame html={n.html} title={n.subject} />
           ) : (
             <Card className="p-6 text-sm text-muted">No message body was generated{n.lastError ? `: ${n.lastError}` : "."}</Card>
@@ -78,12 +76,10 @@ export default async function NotificationPage({ params }: { params: Promise<{ i
               </ul>
             </Card>
           ) : null}
-          {!hideBody ? (
-            <Card>
+          <Card>
               <CardHeader title="Plain-text version" />
               <pre className="max-h-96 overflow-auto whitespace-pre-wrap px-5 py-4 font-sans text-xs text-muted">{n.text}</pre>
             </Card>
-          ) : null}
         </div>
       </div>
     </>

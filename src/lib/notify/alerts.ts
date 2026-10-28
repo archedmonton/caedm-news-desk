@@ -5,6 +5,7 @@ import { env } from "../env";
 import { getSettings } from "../settings";
 import { isWithinLocalWindow } from "../time";
 import { deliverNotification } from "./deliver";
+import { alertRecipients } from "./recipients";
 import { renderAlert, type EmailStory } from "./templates/emails";
 
 const DETECTION_WINDOW_H = 6;
@@ -105,6 +106,7 @@ export async function processAlerts(db: DB = getDb(), now = Date.now()): Promise
   const s = getSettings(db);
   const batch = ev.eligible.slice(0, MAX_STORIES_PER_ALERT);
   const ids = batch.map((b) => b.id).sort((a, b) => a - b);
+  const recipient = alertRecipients(db, s.alertRecipient, batch.some((b) => b.priority === "P0"));
 
   if (ev.blockedReason) {
     // Flood control: record the skip so the history explains it; the stories remain in the dashboard/digest.
@@ -114,7 +116,7 @@ export async function processAlerts(db: DB = getDb(), now = Date.now()): Promise
         .values({
           kind: "alert",
           dedupeKey: `alert-skipped:${ids.join(",")}`,
-          recipient: s.alertRecipient,
+          recipient,
           subject: `Alert suppressed: ${batch.length} high-priority ${batch.length === 1 ? "story" : "stories"}`,
           status: "skipped",
           lastError: `${ev.blockedReason}. Stories will appear in the next morning brief.`,
@@ -136,7 +138,7 @@ export async function processAlerts(db: DB = getDb(), now = Date.now()): Promise
       .values({
         kind: "alert",
         dedupeKey: `alert:${ids.join(",")}`,
-        recipient: s.alertRecipient,
+        recipient,
         subject: rendered.subject,
         html: rendered.html,
         text: rendered.text,

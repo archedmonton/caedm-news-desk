@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/forms";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/story-row";
 import { Card } from "@/components/ui/primitives";
+import { can } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
 import { listFollowUps } from "@/lib/queries";
 import { formatDateTime } from "@/lib/time";
@@ -34,7 +35,8 @@ function QuickStatus({ storyId, status, label }: { storyId: number; status: stri
 }
 
 export default async function FollowUpsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const user = await requireUser("manage_follow_ups");
+  const user = await requireUser();
+  const canReview = can(user.role, "manage_follow_ups");
   const view = param(await searchParams, "view");
   const rows = listFollowUps({ view: view === "mine" ? "" : view, assignee: view === "mine" ? user.id : undefined });
   const now = Date.now();
@@ -85,6 +87,7 @@ export default async function FollowUpsPage({ searchParams }: { searchParams: Pr
                       </p>
                     ) : null}
                   </div>
+                  {canReview ? (
                   <div className="flex shrink-0 flex-wrap gap-1">
                     {r.reviewStatus === "covered" || r.reviewStatus === "archived" ? (
                       <QuickStatus storyId={r.storyId} status="reviewing" label="Reopen" />
@@ -93,6 +96,7 @@ export default async function FollowUpsPage({ searchParams }: { searchParams: Pr
                     )}
                     {r.reviewStatus !== "archived" ? <QuickStatus storyId={r.storyId} status="archived" label="Archive" /> : null}
                   </div>
+                  ) : null}
                 </li>
               );
             })}

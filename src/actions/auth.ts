@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { ActionState } from "@/components/forms";
 import { audit } from "@/lib/audit";
-import { devLoginAllowed, productionAccess } from "@/lib/auth/access";
+import { devLoginAllowed, isAllowedEmail, productionAccess } from "@/lib/auth/access";
+import { env } from "@/lib/env";
 import { createSession, destroySession, getCurrentUser } from "@/lib/auth/session";
 import { acceptInvitation, authenticate } from "@/lib/auth/users";
 import { getDb } from "@/lib/db/client";
@@ -17,7 +18,8 @@ export async function loginAction(_prev: ActionState, fd: FormData): Promise<Act
     email: fd.get("email"),
     password: fd.get("password"),
   });
-  if (!parsed.success) return { error: "Enter your email and password." };
+  if (!parsed.success) return { error: "Enter your work email and password." };
+  if (!isAllowedEmail(parsed.data.email)) return { error: `Sign in with your @${env().ALLOWED_EMAIL_DOMAIN} work email.` };
   try {
     const user = await authenticate(parsed.data.email, parsed.data.password);
     await createSession(user.id);

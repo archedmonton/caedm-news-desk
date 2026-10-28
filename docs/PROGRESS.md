@@ -67,8 +67,28 @@ are blocked on IT approval, as intended.
    data.
 5. Enable the CAEDM feed, then verify and activate further expansion sources (see `docs/SOURCES.md`).
 
+## Change request 2026-10-28: roles, accounts, help (✅ implemented, not yet committed)
+
+| Item | Status | Verified by |
+|---|---|---|
+| Developer admin ruban.peppin@caedm.ca (protected) | ✅ | unit + e2e |
+| Four roles: Administrator / Manager / Member / Viewer, enforced server-side and in the UI | ✅ | permission-matrix unit test; member and viewer e2e |
+| Only admins add people; invite or approve with any role | ✅ | e2e |
+| Per-account email notifications (brief, alerts all/P0, assignments, access requests) | ✅ | integration + e2e |
+| Work-email sign-in (browser + server domain check) | ✅ | e2e |
+| Request access → admin dashboard (+ email to opted-in admins) → approve/decline | ✅ | integration + e2e |
+| Contextual help (login, dashboard, every page) with developer contact | ✅ | e2e (desktop + mobile screenshot) |
+| Request a feature → stored and emailed to ruban.peppin@caedm.ca (simulated until live email) | ✅ | integration + e2e |
+
+Migration `0001` is hand-written and additive (ADD COLUMN plus new tables), and remaps `communications` →
+`manager`. It was applied to the dev database without losing sessions.
+
+Tests: Vitest **75 passed**, Playwright **16 passed**; typecheck, lint and production build all pass.
+
 ## Log
 
+- 2026-10-28 (later): change request implemented (roles, developer admin, access requests, personal
+  notifications, contextual help, feature requests).
 - 2026-10-28:
   - Workspace was empty. Scaffolded Next.js; verified the pilot sources.
   - Implemented all milestones. Tuned the classifier on real data: excluded the publisher's own name from

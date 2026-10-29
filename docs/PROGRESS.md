@@ -67,7 +67,20 @@ are blocked on IT approval, as intended.
    data.
 5. Enable the CAEDM feed, then verify and activate further expansion sources (see `docs/SOURCES.md`).
 
-## Change request 2026-10-28 (3): CAEDM branding (branch `feature/branding`, not yet pushed)
+## Change request 2026-10-29: production backend setup (branch `feature/production-setup`, not yet pushed)
+
+- `.env.vercel` (git-ignored) holds every production variable, ready for Vercel "Import .env". SMTP was taken from
+  IT details and verified (login only, no email sent). It also has a generated `CRON_SECRET` and placeholders for
+  the Supabase strings.
+- The `vercel-build` script runs migrations and seeding on every production deploy (`db-setup --hosted-only`).
+  Builds without a database skip this step.
+- Bug fixed: a hosted database set up from a workstation created the developer admin as active with no password,
+  so they could never sign in. The account is now "invited".
+- New `db:setup:prod` and `admin:invite:prod` scripts read `.env.vercel`.
+- SMTP now uses connect, greeting and socket timeouts, so serverless functions fail fast and retry later.
+- Open item: IT must allow port 587 on 64.141.20.79 from the internet so Vercel can reach the SMTP server.
+
+## Change request 2026-10-28 (3): CAEDM branding (✅ pushed 9928f68)
 
 - The CAEDM logo appears in the sidebar, the mobile header, sign-in and invitation pages. The crest is the
   favicon/app icon.

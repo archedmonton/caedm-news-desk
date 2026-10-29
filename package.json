@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "vercel-build": "tsx scripts/db-setup.ts --hosted-only && next build",
     "start": "next start",
     "worker": "tsx worker/index.ts",
     "lint": "eslint",
@@ -16,11 +17,13 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/db-setup.ts --migrate-only",
     "db:setup": "tsx scripts/db-setup.ts",
+    "db:setup:prod": "tsx --env-file=.env.vercel scripts/db-setup.ts",
     "db:seed:sample": "tsx scripts/db-setup.ts --sample",
     "collect": "tsx scripts/collect.ts",
     "digest:preview": "tsx scripts/digest-preview.ts",
     "alerts:dry-run": "tsx scripts/alerts-dry-run.ts",
-    "admin:invite": "tsx scripts/admin-invite.ts"
+    "admin:invite": "tsx scripts/admin-invite.ts",
+    "admin:invite:prod": "tsx --env-file=.env.vercel scripts/admin-invite.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.13",

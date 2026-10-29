@@ -28,6 +28,10 @@ function smtpTransport(): MailTransport {
     port: e.SMTP_PORT ?? 587,
     secure: e.SMTP_SECURE,
     auth: e.SMTP_USER ? { user: e.SMTP_USER, pass: e.SMTP_PASSWORD } : undefined,
+    // Fail fast inside serverless functions; undelivered mail is retried by the next refresh.
+    connectionTimeout: 15_000,
+    greetingTimeout: 15_000,
+    socketTimeout: 30_000,
   });
   return {
     name: "smtp",

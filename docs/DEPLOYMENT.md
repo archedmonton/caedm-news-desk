@@ -32,83 +32,77 @@ Notes:
 - **Alerts:** P0/P1 email alerts go out after the 8 AM run and whenever a signed-in session triggers a
   refresh. They are not sent every few minutes overnight.
 
-## 1. Supabase
+## 0. The production environment file
 
-1. Create the project in **Canada (Central)**, with a generated database password stored in a password
-   manager.
-2. In **Project Settings → Data API**, disable the Data API (the app connects to Postgres directly). The
-   migration also enables Row Level Security on every table as a second guard.
-3. Under **Connect**, copy:
-   - the **Transaction pooler** string (port **6543**), which becomes `DATABASE_URL` for Vercel;
-   - the **Session pooler** (or Direct) string (port **5432**), which becomes `DATABASE_URL_DIRECT` for
-     migrations.
-4. Create the tables. Run this once from your PC, passing the strings only for that one command; don't
-   save them in `.env`, or local development would use the production database.
+All production settings live in `.env.vercel` at the project root. The file is git-ignored, and Next.js never
+loads it locally, so it can't leak into a commit or into local development. It contains:
+- the SMTP settings from IT;
+- a generated `CRON_SECRET`;
+- `PRODUCTION_ACCESS_ENABLED=true` and `EMAIL_LIVE_SEND=true`;
+- placeholders for the two Supabase strings.
 
-   ```powershell
-   $env:DATABASE_URL="<transaction pooler string>"; $env:DATABASE_URL_DIRECT="<session pooler string>"; $env:NODE_ENV="production"
-   npm run db:setup          # migrations + source registry + developer admin (invited)
-   Remove-Item Env:DATABASE_URL, Env:DATABASE_URL_DIRECT, Env:NODE_ENV
-   ```
+The same file is used to import into Vercel (step 2) and by the `:prod` scripts (step 3).
 
-   Re-run `npm run db:migrate` the same way whenever a release adds a migration (see `drizzle/`).
+## 1. Supabase: get DATABASE_URL
+
+1. Open the project at <https://supabase.com/dashboard> (project ref `pyhmshpoprihjrfukwvt`).
+2. Click **Connect** in the top bar, then go to **Connection String** and choose type **URI**.
+   - **Transaction pooler** (port **6543**) → `DATABASE_URL`
+   - **Session pooler** (port **5432**) → `DATABASE_URL_DIRECT`
+
+   Don't use "Direct connection". It is IPv6-only, and Vercel can't reach it.
+3. Each string contains `[YOUR-PASSWORD]`. Replace it, including the brackets, with the database password.
+   If you don't have it, go to **Project Settings → Database → Reset database password**. If the password
+   contains `@ : / ? # [ ] %`, URL-encode it first:
+   `node -e "console.log(encodeURIComponent(process.argv[1]))" "<password>"`.
+4. Paste both strings into `.env.vercel`, replacing the two placeholder lines.
+5. Recommended: in **Project Settings → Data API**, disable the Data API. The app connects to Postgres
+   directly, and every table also has Row Level Security enabled.
 
 ## 2. Vercel
 
-1. **Import** `archedmonton/caedm-news-desk`. Framework: Next.js; leave the build settings at their
-   defaults.
-2. Add **Environment Variables** (Production):
+1. **Project → Settings → Environment Variables → Import .env**, choose `.env.vercel`, and select
+   **Production** only. Not Preview: preview builds would otherwise use and migrate the production database.
+2. **Settings → Functions → Region:** Washington, D.C. (`iad1`).
+3. **Deployments → ⋯ → Redeploy.** The build runs `vercel-build`, which first creates or upgrades the
+   tables and seeds the sources and the developer admin (`db-setup --hosted-only`), then builds the app.
+   If the database can't be reached, the deploy fails instead of going live broken.
+4. Check:
+   - `https://caedm-news-desk.vercel.app/api/health` returns `{"ok":true,"db":"ok",…}`.
+   - The sign-in page shows the email and password form.
+   - **Settings → Cron Jobs** lists the two `/api/cron/tick` jobs. **Run** one to collect news now.
 
-   | Name | Value |
-   |---|---|
-   | `DATABASE_URL` | Supabase **transaction pooler** string (6543) |
-   | `DATABASE_POOL_MAX` | `3` |
-   | `APP_URL` | `https://<project>.vercel.app` (or the custom domain) |
-   | `CRON_SECRET` | random 32+ chars: `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
-   | `ALLOWED_EMAIL_DOMAIN` | `caedm.ca` |
-   | `DEVELOPER_NAME` / `DEVELOPER_EMAIL` | `Ruban Peppin` / `ruban.peppin@caedm.ca` |
-   | `EMAIL_TRANSPORT` | `outbox` until IT provides email, then `smtp` or `graph` |
-   | `EMAIL_LIVE_SEND` | `false` until email is configured, then `true` |
-   | `EMAIL_FROM` | `CAEDM News Desk <newsdesk@caedm.ca>` |
-   | `PRODUCTION_ACCESS_ENABLED` | `false` until email works, then `true` |
-   | SMTP: `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` | from IT |
-   | or Graph: `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `GRAPH_SENDER` | from IT |
+## 3. First sign-in (developer administrator)
 
-   Don't set `DEV_LOGIN_ENABLED`; it is ignored in production anyway. The `NEXT_PUBLIC_SUPABASE_*` keys
-   are not used by this app.
-3. **Settings → Functions → Region:** Washington, D.C. (`iad1`), the closest to Supabase Canada Central.
-4. **Deploy.** Then check:
-   - `https://<app>/api/health` returns `{"ok":true,"db":"ok",…}`.
-   - **Settings → Cron Jobs** lists the two `/api/cron/tick` jobs. Use **Run** on one to collect news
-     immediately; the response shows `checked: 4`.
+Run this from your PC, on the office network:
 
-## 3. Email and first sign-in
+```powershell
+npm run admin:invite:prod -- ruban.peppin@caedm.ca
+```
 
-Sign-in stays disabled in production until real email works, because invitations prove a person controls
-their @caedm.ca mailbox.
+It creates your invitation in the Supabase database. It also prints the one-time link and emails it to you
+through the CAEDM SMTP server. Open the link, set a password and sign in.
 
-1. IT provides an SMTP relay account or a Microsoft Graph app registration (`Mail.Send`, restricted to the
-   sender mailbox).
-2. Set the email variables, `EMAIL_LIVE_SEND=true` and `PRODUCTION_ACCESS_ENABLED=true`, then redeploy.
-3. Send the developer's invitation (same one-off variables as in Supabase step 4, plus
-   `APP_URL=https://<app>`):
+Invite everyone else from **Settings → Staff access**, or approve **Request access** submissions on the
+Overview. Those emails are sent from Vercel, so Vercel must be able to reach the SMTP server.
 
-   ```powershell
-   npm run admin:invite -- ruban.peppin@caedm.ca admin
-   ```
+**SMTP reachability (IT).**
+- `s10ex2.network.caedm.ca` resolves publicly to `64.141.20.79`. Vercel connects from changing public IP
+  addresses, so port **587** (STARTTLS, authenticated) must accept connections from the internet.
+- If IT can't allow that, use Microsoft Graph or an authenticated relay such as Microsoft 365
+  (`smtp.office365.com:587`), and update the `SMTP_*` / `GRAPH_*` variables.
+- Failed emails show in **Email outbox** with the error and are retried automatically.
 
-4. Open the emailed link, set a password, and sign in. Invite everyone else from **Settings → Staff access**,
-   or approve their **Request access** submissions on the Overview.
-5. **Test before going live.** Set the brief recipient to yourself, use **Email outbox → Save preview to
-   outbox**, confirm it arrives, then set it back to `communications@caedm.ca`.
+**Before going live**, set the brief recipient to yourself, use **Email outbox → Save preview to outbox**,
+confirm it arrives, then set it back to `communications@caedm.ca`.
 
 ## Production readiness checklist
 
 - [ ] Vercel non-profit/in-house use confirmed in writing by Vercel
 - [ ] Supabase project in Canada (Central); Data API disabled; DB password in a password manager
-- [ ] `npm run db:setup` run against Supabase; `/api/health` OK
+- [ ] Supabase strings in `.env.vercel`, imported to Vercel (Production only), redeployed, `/api/health` OK
 - [ ] `CRON_SECRET` set; both cron jobs visible; a manual run returns `checked: 4`
-- [ ] IT email transport configured; test brief received; `PRODUCTION_ACCESS_ENABLED=true`
+- [ ] IT allows SMTP port 587 from the internet (or provides Graph/M365); test brief received
 - [ ] Developer admin signed in; Communications staff invited with the right roles
 - [ ] Brief recipient, alert hours and priority rules reviewed by Communications
 - [ ] Backups: check what your Supabase plan includes (free plans may not offer downloadable backups) and

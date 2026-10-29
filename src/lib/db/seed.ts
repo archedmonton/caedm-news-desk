@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { developerContact } from "../developer";
-import { isProduction } from "../env";
+import { env, isProduction } from "../env";
 import { SOURCE_REGISTRY } from "../ingest/registry";
 import { first, type DB } from "./client";
 import { sources, users } from "./schema";
@@ -49,7 +49,9 @@ export async function ensureDeveloperAdmin(db: DB) {
       .where(eq(users.id, existing.id));
     return { created: false, status: existing.status };
   }
-  const status = isProduction() ? ("invited" as const) : ("active" as const);
+  // A hosted database is production data even when set up from a workstation: the developer must accept an
+  // invitation and choose a password rather than being active with no password.
+  const status = isProduction() || env().DATABASE_URL ? ("invited" as const) : ("active" as const);
   await db
     .insert(users)
     .values({

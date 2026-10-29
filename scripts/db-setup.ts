@@ -7,11 +7,16 @@ import { ensureDeveloperAdmin, seedSources } from "../src/lib/db/seed";
 import { sources, users } from "../src/lib/db/schema";
 import { env, isProduction } from "../src/lib/env";
 
-// Usage: npm run db:setup [-- --sample | --migrate-only | --defer-checks]
+// Usage: npm run db:setup [-- --sample | --migrate-only | --defer-checks | --hosted-only]
 // With DATABASE_URL set (Supabase), migrations run over DATABASE_URL_DIRECT (session/direct connection).
 async function main() {
   const args = new Set(process.argv.slice(2));
   const e = env();
+  if (args.has("--hosted-only") && !e.DATABASE_URL) {
+    // Vercel builds without a database (e.g. preview deployments) skip setup instead of creating a throwaway PGlite.
+    console.log("DATABASE_URL is not set; skipping database setup.");
+    return;
+  }
   if (e.DATABASE_URL) setDb(openPostgres(e.DATABASE_URL_DIRECT ?? e.DATABASE_URL, { max: 1 }));
   const db = getDb();
   const target = e.DATABASE_URL ? new URL(e.DATABASE_URL_DIRECT ?? e.DATABASE_URL).host : e.PGLITE_DIR;
@@ -22,7 +27,7 @@ async function main() {
     console.log(`✓ Sources seeded (${await seedSources(db)} new)`);
     const dev = await ensureDeveloperAdmin(db);
     console.log(`✓ Developer administrator ${e.DEVELOPER_EMAIL} (${dev.status}${dev.created ? ", created" : ""})`);
-    if (dev.status === "invited") console.log(`  → Send the developer a sign-up link: npm run admin:invite -- ${e.DEVELOPER_EMAIL} admin`);
+    if (dev.status === "invited") console.log(`  → Send the developer a sign-up link: npm run admin:invite:prod -- ${e.DEVELOPER_EMAIL}`);
 
     if (!isProduction() && !e.DATABASE_URL) {
       // Development accounts have no password; they are usable only via development sign-in (DEV_LOGIN_ENABLED).

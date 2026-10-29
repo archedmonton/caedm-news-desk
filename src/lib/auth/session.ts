@@ -42,6 +42,12 @@ export async function destroySession() {
   jar.delete(SESSION_COOKIE);
 }
 
+/** Hash of this request's session token, so a password change can keep the current session signed in. */
+export async function currentSessionHash(): Promise<string | null> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  return token ? sha256(token) : null;
+}
+
 /** Validates the session cookie against the database. Cached per request. */
 export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   if (!productionAccess().enabled) return null;

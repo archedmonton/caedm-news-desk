@@ -3,7 +3,7 @@ import { first, getDb, type DB } from "../db/client";
 import { notifications, stories, users } from "../db/schema";
 import { env } from "../env";
 import { deliverNotification } from "./deliver";
-import { renderAssignment } from "./templates/emails";
+import { renderAssignment, renderPasswordChanged } from "./templates/emails";
 
 /** Email the assignee, unless they assigned themselves or turned assignment emails off. */
 export async function notifyAssignment(
@@ -37,6 +37,38 @@ export async function notifyAssignment(
         ...rendered,
         status: "pending",
         meta: { storyId: story.id, assigneeId: assignee.id },
+        createdAt: now,
+      })
+      .returning({ id: notifications.id })
+  )[0];
+  await deliverNotification(row.id, db, now);
+  return row.id;
+}
+
+/** Security notice after a password change. Always sent: there is no opt-out for security email. */
+export async function notifyPasswordChanged(
+  user: { id: number; email: string; name: string },
+  otherSessionsEnded: number,
+  db: DB = getDb(),
+  now = Date.now(),
+) {
+  const rendered = renderPasswordChanged({
+    name: user.name || user.email,
+    when: now,
+    otherSessionsEnded,
+    appUrl: env().APP_URL,
+    supportEmail: env().DEVELOPER_EMAIL,
+  });
+  const row = (
+    await db
+      .insert(notifications)
+      .values({
+        kind: "security",
+        dedupeKey: `password-changed:${user.id}:${now}`,
+        recipient: user.email,
+        ...rendered,
+        status: "pending",
+        meta: { userId: user.id },
         createdAt: now,
       })
       .returning({ id: notifications.id })

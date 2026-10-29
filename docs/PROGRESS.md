@@ -67,6 +67,17 @@ are blocked on IT approval, as intended.
    data.
 5. Enable the CAEDM feed, then verify and activate further expansion sources (see `docs/SOURCES.md`).
 
+## Change request 2026-10-29 (2): change password (branch `feature/change-password`, not yet pushed)
+
+- **My account → Password:** current password, new password and confirmation.
+  - New passwords follow the sign-up rules: 12+ characters, and different from the current one.
+  - Wrong current passwords count towards the 15-minute sign-in lockout.
+  - On success, every other session is signed out, the change is audited (`user.password_changed`), and a
+    security email is sent. It can't be turned off and appears in the outbox as "Security".
+- Accounts without a password (local dev accounts) see a note instead of the form.
+- Verified by integration tests (3 new, 88 total) and the e2e flow invite → set password → change it → old
+  password rejected → new one accepted (21/21).
+
 ## Change request 2026-10-29: production backend setup (branch `feature/production-setup`, not yet pushed)
 
 - `.env.vercel` (git-ignored) holds every production variable, ready for Vercel "Import .env". SMTP was taken from

@@ -275,3 +275,27 @@ export function renderFeatureRequest(opts: {
   const text = [subject, "", ...rows.map(([k, v]) => `${k}: ${v}`), "", `${opts.appUrl}/settings#feature-requests`].join("\n");
   return { subject, html, text };
 }
+
+export function renderPasswordChanged(opts: {
+  name: string;
+  when: number;
+  otherSessionsEnded: number;
+  appUrl: string;
+  supportEmail: string;
+}): RenderedEmail {
+  const subject = "Your News Desk password was changed";
+  const rows: [string, string][] = [
+    ["Account", opts.name],
+    ["Changed", `${formatDateTime(opts.when)} (Edmonton)`],
+    ["Other sessions signed out", String(opts.otherSessionsEnded)],
+  ];
+  const warning = `If you didn't make this change, contact ${opts.supportEmail} immediately.`;
+  const html = emailLayout({
+    title: "Password changed",
+    preheader: subject,
+    body: `<p style="font-size:14px">Your password for CAEDM News Desk was just changed.</p>${detailRows(rows)}<p style="font-size:14px;font-weight:600">${esc(warning)}</p>${button(`${opts.appUrl}/account`, "Open my account")}`,
+    footerNote: "Security notices are always sent and can't be turned off.",
+  });
+  const text = [subject, "", ...rows.map(([k, v]) => `${k}: ${v}`), "", warning, "", `${opts.appUrl}/account`].join("\n");
+  return { subject, html, text };
+}

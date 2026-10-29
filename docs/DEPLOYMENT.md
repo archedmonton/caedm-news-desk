@@ -81,7 +81,8 @@ npm run admin:invite:prod -- ruban.peppin@caedm.ca
 ```
 
 It creates your invitation in the Supabase database. It also prints the one-time link and emails it to you
-through the CAEDM SMTP server. Open the link, set a password and sign in.
+through the CAEDM SMTP server. Open the link, set a password and sign in. You can change it later under
+**My account → Password**.
 
 Invite everyone else from **Settings → Staff access**, or approve **Request access** submissions on the
 Overview. Those emails are sent from Vercel, so Vercel must be able to reach the SMTP server.

@@ -1,10 +1,11 @@
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, ne } from "drizzle-orm";
 import { audit } from "../audit";
 import { first, getDb, type DB } from "../db/client";
 import { invitations, notifications, sessions, users, type Role } from "../db/schema";
 import { env } from "../env";
 import { sha256 } from "../ingest/url";
 import { deliverNotification } from "../notify/deliver";
+import { notifyPasswordChanged } from "../notify/personal";
 import { renderInvite } from "../notify/templates/emails";
 import { isAllowedEmail } from "./access";
 import { hashPassword, passwordProblem, randomToken, verifyPassword } from "./password";
@@ -155,4 +156,50 @@ export async function updateOwnAccount(userId: number, input: { name: string } &
     .set({ ...input, name, updatedAt: Date.now() })
     .where(eq(users.id, userId));
   await audit("account.updated", "user", userId, userId, { ...input, name }, db);
+}
+
+/**
+ * Changes the signed-in user's own password. Wrong current passwords count towards the sign-in lockout, so a
+ * hijacked session can't be used to guess the password. Every other session of the account is signed out.
+ */
+export async function changePassword(
+  input: {
+    userId: number;
+    currentPassword: string;
+    newPassword: string;
+    keepSessionHash?: string | null;
+  },
+  db: DB = getDb(),
+  now = Date.now(),
+) {
+  const user = await first(db.select().from(users).where(eq(users.id, input.userId)));
+  if (!user || user.status !== "active") throw new Error("Account not found.");
+  if (!user.passwordHash) throw new Error("This account has no password yet. Ask an administrator for an invitation.");
+  if (user.lockedUntil && user.lockedUntil > now) throw new Error("Too many failed attempts. Try again in 15 minutes.");
+  if (!(await verifyPassword(input.currentPassword, user.passwordHash))) {
+    const failed = user.failedLogins + 1;
+    await db
+      .update(users)
+      .set({
+        failedLogins: failed,
+        lockedUntil: failed >= MAX_FAILED ? now + LOCK_MS : null,
+      })
+      .where(eq(users.id, user.id));
+    await audit("user.password_change_failed", "user", user.id, user.id, { failed }, db);
+    throw new Error("Your current password is incorrect.");
+  }
+  const problem = passwordProblem(input.newPassword);
+  if (problem) throw new Error(problem);
+  if (input.newPassword === input.currentPassword) throw new Error("Choose a new password that is different from your current one.");
+  const passwordHash = await hashPassword(input.newPassword);
+  const otherSessionsEnded = await db.transaction(async (tx) => {
+    await tx.update(users).set({ passwordHash, failedLogins: 0, lockedUntil: null, updatedAt: now }).where(eq(users.id, user.id));
+    const others = input.keepSessionHash
+      ? and(eq(sessions.userId, user.id), ne(sessions.tokenHash, input.keepSessionHash))
+      : eq(sessions.userId, user.id);
+    return (await tx.delete(sessions).where(others).returning({ id: sessions.id })).length;
+  });
+  await audit("user.password_changed", "user", user.id, user.id, { otherSessionsEnded }, db);
+  await notifyPasswordChanged(user, otherSessionsEnded, db, now);
+  return { otherSessionsEnded };
 }

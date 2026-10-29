@@ -7,8 +7,8 @@ import type { ActionState } from "@/components/forms";
 import { audit } from "@/lib/audit";
 import { devLoginAllowed, isAllowedEmail, productionAccess } from "@/lib/auth/access";
 import { env } from "@/lib/env";
-import { createSession, destroySession, getCurrentUser } from "@/lib/auth/session";
-import { acceptInvitation, authenticate } from "@/lib/auth/users";
+import { createSession, currentSessionHash, destroySession, getCurrentUser, requireUser } from "@/lib/auth/session";
+import { acceptInvitation, authenticate, changePassword } from "@/lib/auth/users";
 import { first, getDb } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
 
@@ -58,4 +58,25 @@ export async function acceptInviteAction(_prev: ActionState, fd: FormData): Prom
     return { error: (e as Error).message };
   }
   redirect("/");
+}
+
+export async function changePasswordAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  // Outside the try: an expired session redirects to sign-in rather than showing an error.
+  const user = await requireUser("manage_own_account");
+  const newPassword = String(fd.get("newPassword") ?? "");
+  if (newPassword !== String(fd.get("confirmPassword") ?? "")) return { error: "The new passwords do not match." };
+  try {
+    const r = await changePassword({
+      userId: user.id,
+      currentPassword: String(fd.get("currentPassword") ?? ""),
+      newPassword,
+      keepSessionHash: await currentSessionHash(),
+    });
+    const others = r.otherSessionsEnded
+      ? ` You were signed out on ${r.otherSessionsEnded} other ${r.otherSessionsEnded === 1 ? "device" : "devices"}.`
+      : "";
+    return { ok: true, message: `Password changed.${others}` };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
 }

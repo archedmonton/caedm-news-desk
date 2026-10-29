@@ -1,8 +1,9 @@
 import { first } from "@/lib/db/client";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
-import { createInvitation, setUserRole, setUserStatus, updateOwnAccount } from "@/lib/auth/users";
-import { accessRequests, featureRequests, invitations, notifications, stories, users } from "@/lib/db/schema";
+import { hashPassword } from "@/lib/auth/password";
+import { authenticate, changePassword, createInvitation, setUserRole, setUserStatus, updateOwnAccount } from "@/lib/auth/users";
+import { accessRequests, auditLogs, featureRequests, invitations, notifications, sessions, stories, users } from "@/lib/db/schema";
 import { ensureDeveloperAdmin } from "@/lib/db/seed";
 import { upsertStory } from "@/lib/ingest/collector";
 import { processAlerts } from "@/lib/notify/alerts";
@@ -49,6 +50,53 @@ describe("developer administrator", () => {
 
   it("new users default to the member role", async () => {
     expect((await db.insert(users).values({ email: "x@caedm.ca" }).returning())[0].role).toBe("member");
+  });
+});
+
+describe("changing your own password", () => {
+  let db: Awaited<ReturnType<typeof testDb>>;
+  const OLD = "correct horse battery";
+  const NEW = "a new staple passphrase";
+  beforeEach(async () => {
+    db = await testDb();
+  });
+  const userWithSessions = async () => {
+    const u = await addUser(db, "staff@caedm.ca", { passwordHash: await hashPassword(OLD) });
+    await db.insert(sessions).values(
+      ["this-device", "laptop", "phone"].map((tokenHash) => ({ tokenHash, userId: u.id, expiresAt: NOW + 3600_000, lastSeenAt: NOW, createdAt: NOW })),
+    );
+    return u;
+  };
+
+  it("changes the password, keeps this session, signs out the others and sends a security notice", async () => {
+    const u = await userWithSessions();
+    expect(await changePassword({ userId: u.id, currentPassword: OLD, newPassword: NEW, keepSessionHash: "this-device" }, db, NOW)).toEqual({
+      otherSessionsEnded: 2,
+    });
+    await expect(authenticate("staff@caedm.ca", OLD, db, NOW)).rejects.toThrow(/incorrect/);
+    expect((await authenticate("staff@caedm.ca", NEW, db, NOW)).id).toBe(u.id);
+    expect((await db.select().from(sessions)).map((x) => x.tokenHash)).toEqual(["this-device"]);
+    const notice = (await first(db.select().from(notifications).where(eq(notifications.kind, "security"))))!;
+    expect(notice).toMatchObject({ recipient: "staff@caedm.ca", subject: "Your News Desk password was changed" });
+    expect(notice.text).not.toContain(NEW);
+    expect((await db.select().from(auditLogs).where(eq(auditLogs.action, "user.password_changed"))).length).toBe(1);
+  });
+
+  it("rejects a wrong current password, a weak or unchanged new one, and locks after repeated failures", async () => {
+    const u = await userWithSessions();
+    const attempt = (currentPassword: string, newPassword = NEW) => changePassword({ userId: u.id, currentPassword, newPassword }, db, NOW);
+    await expect(attempt(OLD, "short")).rejects.toThrow(/at least 12/);
+    await expect(attempt(OLD, OLD)).rejects.toThrow(/different/);
+    for (let i = 0; i < 4; i++) await expect(attempt("wrong password")).rejects.toThrow(/current password is incorrect/);
+    await expect(attempt("wrong password")).rejects.toThrow(/current password is incorrect/);
+    await expect(attempt(OLD)).rejects.toThrow(/Too many failed attempts/);
+    expect((await db.select().from(sessions)).length).toBe(3);
+    expect(await first(db.select().from(notifications))).toBeUndefined();
+  });
+
+  it("refuses accounts without a password", async () => {
+    const u = await addUser(db, "dev.only@caedm.ca");
+    await expect(changePassword({ userId: u.id, currentPassword: "", newPassword: NEW }, db, NOW)).rejects.toThrow(/no password/);
   });
 });
 

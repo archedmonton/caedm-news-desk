@@ -228,7 +228,7 @@ export const followUpNotes = pgTable(
   (t) => [index("follow_up_notes_fu_idx").on(t.followUpId)],
 );
 
-export const NOTIFICATION_KINDS = ["digest", "alert", "invite", "test", "assignment", "access_request", "feature_request"] as const;
+export const NOTIFICATION_KINDS = ["digest", "alert", "invite", "test", "assignment", "access_request", "feature_request", "security"] as const;
 
 export const NOTIFICATION_STATUSES = ["pending", "simulated", "sent", "failed", "skipped"] as const;
 export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number];

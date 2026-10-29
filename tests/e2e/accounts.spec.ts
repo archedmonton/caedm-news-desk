@@ -102,3 +102,52 @@ test("developer admin is listed, protected, and sees feature requests", async ({
   await expect(page.getByRole("heading", { name: "Feature requests" })).toBeVisible();
   await expect(page.getByText("Weekly summary email")).toBeVisible();
 });
+
+test("an invited person sets a password, changes it, and signs in with the new one", async ({ page }) => {
+  test.setTimeout(120_000);
+  const email = "casey.password@caedm.ca";
+  await devSignIn(page, "Dev Administrator");
+  await page.goto("/settings");
+  await page.locator("#invite-email").fill(email);
+  await page.getByRole("button", { name: "Send invitation" }).click();
+  await expect(page.getByText(`Invitation created for ${email}`)).toBeVisible();
+
+  await page.goto("/outbox?kind=invite");
+  await page.getByTestId("outbox-row").filter({ hasText: email }).first().getByRole("link").first().click();
+  const href = await page.frameLocator("iframe").getByRole("link", { name: "Accept invitation" }).getAttribute("href");
+  await page.context().clearCookies();
+  await page.goto(new URL(href!).pathname);
+  await page.getByLabel("Your name").fill("Casey Password");
+  await page.getByLabel("Password", { exact: true }).fill("first password 123");
+  await page.getByLabel("Confirm password").fill("first password 123");
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+
+  await page.goto("/account");
+  const change = async (current: string, next: string, confirm = next) => {
+    await page.getByLabel("Current password").fill(current);
+    await page.getByLabel("New password", { exact: true }).fill(next);
+    await page.getByLabel("Confirm new password").fill(confirm);
+    await page.getByRole("button", { name: "Change password" }).click();
+  };
+  await change("first password 123", "second password 456", "something else 789");
+  await expect(page.getByText("The new passwords do not match.")).toBeVisible();
+  await change("not my password", "second password 456");
+  await expect(page.getByText("Your current password is incorrect.")).toBeVisible();
+  await change("first password 123", "second password 456");
+  await expect(page.getByText("Password changed.")).toBeVisible();
+  await expect(page.getByLabel("Current password")).toHaveValue("");
+
+  await page.goto("/outbox?kind=security");
+  await expect(page.getByTestId("outbox-row").first()).toContainText(email);
+
+  await page.context().clearCookies();
+  await page.goto("/login");
+  await page.locator("#email").fill(email);
+  await page.locator("#password").fill("first password 123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByText("Email or password is incorrect.")).toBeVisible();
+  await page.locator("#password").fill("second password 456");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+});

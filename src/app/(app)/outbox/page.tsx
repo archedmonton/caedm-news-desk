@@ -33,6 +33,7 @@ const KINDS = [
   { key: "assignment", label: "Assignments" },
   { key: "feature_request", label: "Feature requests" },
   { key: "access_request", label: "Access requests" },
+  { key: "security", label: "Security" },
 ];
 
 export default async function OutboxPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {

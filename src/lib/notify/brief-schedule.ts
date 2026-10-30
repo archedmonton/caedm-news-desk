@@ -1,4 +1,4 @@
-/** Personal brief times offered in My account: every half hour, 5:00 a.m. to 9:00 p.m. Edmonton. */
+/** Personal brief times offered in Notifications & alerts: every half hour, 5:00 a.m. to 9:00 p.m. Edmonton. */
 export const BRIEF_TIMES: string[] = Array.from({ length: 33 }, (_, i) => {
   const minutes = 5 * 60 + i * 30;
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
@@ -13,6 +13,6 @@ export function formatClock(hhmm: string) {
 }
 
 /** e.g. "Weekdays at 7:30 am" */
-export function briefScheduleLabel(u: { digestTime: string | null; digestDays: "daily" | "weekdays" }, teamTime: string) {
-  return `${u.digestDays === "weekdays" ? "Weekdays" : "Every day"} at ${formatClock(u.digestTime ?? teamTime)}`;
+export function briefScheduleLabel(u: { digestTime: string | null; digestDays: "daily" | "weekdays" }, defaultTime: string) {
+  return `${u.digestDays === "weekdays" ? "Weekdays" : "Every day"} at ${formatClock(u.digestTime ?? defaultTime)}`;
 }

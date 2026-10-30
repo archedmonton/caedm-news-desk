@@ -90,7 +90,7 @@ export async function evaluateAlerts(db: DB = getDb(), now = Date.now()): Promis
     } else eligible.push(c);
   }
   let blockedReason: string | null = null;
-  if (!s.alertsEnabled) blockedReason = "Alerts are disabled in Settings";
+  if (!s.alertsEnabled) blockedReason = "Alerts are turned off for everyone (Notifications & alerts)";
   else if (eligible.length && sentLastHour >= s.alertMaxPerHour) blockedReason = `Hourly alert limit reached (${s.alertMaxPerHour})`;
   else if (eligible.length && sentLastDay >= s.alertMaxPerDay) blockedReason = `Daily alert limit reached (${s.alertMaxPerDay})`;
   return { enabled: s.alertsEnabled, inWindow, sentLastHour, sentLastDay, eligible, held, blockedReason };
@@ -109,16 +109,15 @@ export async function processAlerts(db: DB = getDb(), now = Date.now()): Promise
   const ev = await evaluateAlerts(db, now);
   if (!ev.enabled) return { status: "disabled" };
   if (!ev.eligible.length) return { status: "none" };
-  const s = await getSettings(db);
   const batch = ev.eligible.slice(0, MAX_STORIES_PER_ALERT);
   const ids = batch.map((b) => b.id).sort((a, b) => a - b);
   const recipient = await alertRecipients(
     db,
-    s.alertRecipient,
     batch.some((b) => b.priority === "P0"),
   );
+  const blockedReason = ev.blockedReason ?? (recipient ? null : "No one has turned on high-priority alerts");
 
-  if (ev.blockedReason) {
+  if (blockedReason) {
     // Flood control: record the skip so the history explains it; the stories remain in the dashboard/digest.
     await db.transaction(async (tx) => {
       const row = (
@@ -130,7 +129,7 @@ export async function processAlerts(db: DB = getDb(), now = Date.now()): Promise
             recipient,
             subject: `Alert suppressed: ${batch.length} high-priority ${batch.length === 1 ? "story" : "stories"}`,
             status: "skipped",
-            lastError: `${ev.blockedReason}. Stories will appear in the next morning brief.`,
+            lastError: `${blockedReason}. The stories stay on the dashboard and appear in personal briefs.`,
             meta: { storyIds: ids },
             createdAt: now,
           })
@@ -141,7 +140,7 @@ export async function processAlerts(db: DB = getDb(), now = Date.now()): Promise
         for (const id of ids)
           await tx.insert(notificationStories).values({ notificationId: row.id, storyId: id, kind: "alert" }).onConflictDoNothing();
     });
-    return { status: "rate_limited", skippedStoryIds: ids, reason: ev.blockedReason };
+    return { status: "rate_limited", skippedStoryIds: ids, reason: blockedReason };
   }
 
   const rendered = renderAlert({ now, stories: batch, appUrl: env().APP_URL });

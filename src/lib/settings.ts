@@ -16,12 +16,12 @@ const hhmm = z.string().refine((v) => {
 
 export const settingsSchema = z.object({
   checkIntervalMinutes: z.coerce.number().int().min(15).max(1440),
+  /** Master switch for everyone's personal briefs. */
   digestEnabled: z.boolean(),
+  /** Default brief time for people who don't choose their own. */
   digestTime: hhmm,
-  digestRecipient: z.string().email(),
   digestLookbackHours: z.coerce.number().int().min(6).max(72),
   alertsEnabled: z.boolean(),
-  alertRecipient: z.string().email(),
   alertMinPriority: z.enum(["P0", "P1"]),
   alertWindowStart: hhmm,
   alertWindowEnd: hhmm,
@@ -36,10 +36,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   checkIntervalMinutes: 15,
   digestEnabled: true,
   digestTime: "08:00",
-  digestRecipient: "communications@caedm.ca",
   digestLookbackHours: 24,
   alertsEnabled: true,
-  alertRecipient: "communications@caedm.ca",
   alertMinPriority: "P1",
   alertWindowStart: "07:00",
   alertWindowEnd: "21:00",

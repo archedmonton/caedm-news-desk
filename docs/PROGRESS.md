@@ -67,7 +67,27 @@ are blocked on IT approval, as intended.
    data.
 5. Enable the CAEDM feed, then verify and activate further expansion sources (see `docs/SOURCES.md`).
 
-## Change request 2026-10-30 (2): three roles, promote/delete staff, personal invitations (✅ pushed)
+## Change request 2026-10-30 (3): emails go to the signed-in person; Notifications & alerts and Team management pages (✅ pushed)
+
+- **No shared mailbox.** The "Recipient: communications@caedm.ca" settings are gone. Every brief and alert goes to the
+  person's own sign-in email, which is shown as **Recipient** on the new page.
+  - The scheduled team brief was removed; everyone gets their own brief instead.
+  - Alerts go only to people who turned them on. If nobody has, the alert is recorded as *skipped*.
+- **Notifications & alerts** (`/notifications`, everyone):
+  - recipient (you);
+  - **Send me a brief now**;
+  - My news brief (time, days, Catholic-only or all);
+  - My high-priority alerts;
+  - other emails.
+  - Administrators also see **Rules for everyone**: briefs and alerts on or off, default brief time, lookback, alert
+    hours, minimum priority and limits.
+- **Team management** (`/team`, administrators): access requests, invite, roles, disable, delete.
+- **Settings** now holds monitoring, priority rules, feature requests and the audit log, with links to the two new
+  pages. **My account** holds profile, role and password.
+- **Overview** shows *your* brief schedule, latest brief and latest alert. **Preview my brief** shows your own brief.
+- **Verified:** 104 Vitest tests and 24 Playwright tests pass; typecheck and lint are clean.
+
+## Change request 2026-10-30 (2): three roles, promote/delete staff, personal invitations (✅ pushed d514738)
 
 - **Roles:** Viewer removed; Administrator, Manager and Member remain. Migration `0002_remove_viewer_role` is
   data-only and turns existing viewers into members.

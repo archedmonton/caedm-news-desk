@@ -80,25 +80,28 @@ test("dashboard help, and a feature request emailed to the developer", async ({ 
 
 test("each account manages its own email notifications", async ({ page }) => {
   await devSignIn(page, "Dev Manager");
-  await page.getByRole("link", { name: "My account" }).first().click();
-  await expect(page.getByRole("heading", { name: "My account" })).toBeVisible();
+  await page.getByRole("link", { name: "Notifications & alerts" }).first().click();
+  await expect(page.getByRole("heading", { name: "Notifications & alerts" })).toBeVisible();
+  await expect(page.getByTestId("my-recipient")).toHaveText("dev.manager@caedm.ca");
   await page.waitForLoadState("networkidle");
-  await page.getByRole("checkbox", { name: /My news brief/ }).check();
+  await page.getByRole("checkbox", { name: /Email me a news brief/ }).check();
   await page.getByLabel("P0 Critical only").check();
-  await page.getByRole("button", { name: "Save my settings" }).click();
-  await expect(page.getByText("Your settings were saved.")).toBeVisible();
+  await page.getByRole("button", { name: "Save my notifications" }).click();
+  await expect(page.getByText("Saved. Your emails go to dev.manager@caedm.ca.")).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("checkbox", { name: /My news brief/ })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /Email me a news brief/ })).toBeChecked();
   await expect(page.getByLabel("P0 Critical only")).toBeChecked();
+  await expect(page.getByRole("heading", { name: "Rules for everyone" })).toHaveCount(0); // administrators only
   await expect(page.getByLabel(/Access requests/)).toHaveCount(0); // administrators only
 });
 
 test("developer admin is listed, protected, and sees feature requests", async ({ page }) => {
   await devSignIn(page, "Ruban Peppin");
-  await page.goto("/settings");
+  await page.goto("/team");
   const row = page.getByRole("row").filter({ hasText: "ruban.peppin@caedm.ca" });
   await expect(row.getByText("Developer")).toBeVisible();
   await expect(row.getByRole("combobox")).toBeDisabled();
+  await page.goto("/settings");
   await expect(page.getByRole("heading", { name: "Feature requests" })).toBeVisible();
   await expect(page.getByText("Weekly summary email")).toBeVisible();
 });
@@ -107,7 +110,7 @@ test("an invited person sets a password, changes it, and signs in with the new o
   test.setTimeout(120_000);
   const email = "casey.password@caedm.ca";
   await devSignIn(page, "Dev Administrator");
-  await page.goto("/settings");
+  await page.goto("/team");
   await page.locator("#invite-name").fill("Casey Password");
   await page.locator("#invite-email").fill(email);
   await page.getByRole("button", { name: "Send invitation" }).click();
@@ -155,7 +158,7 @@ test("an invited person sets a password, changes it, and signs in with the new o
 test("an administrator can promote someone to administrator, never change themselves, and delete an account", async ({ page }) => {
   const email = "drew.removed@caedm.ca";
   await devSignIn(page, "Dev Administrator");
-  await page.goto("/settings");
+  await page.goto("/team");
   await page.locator("#invite-name").fill("Drew Removed");
   await page.locator("#invite-email").fill(email);
   await page.getByRole("button", { name: "Send invitation" }).click();
@@ -177,5 +180,6 @@ test("an administrator can promote someone to administrator, never change themse
   await page.getByRole("row").filter({ hasText: email }).getByRole("button", { name: "Cancel invite" }).click();
   await page.getByRole("row").filter({ hasText: email }).getByRole("button", { name: "Confirm cancel" }).click();
   await expect(page.getByRole("row").filter({ hasText: email })).toHaveCount(0);
+  await page.goto("/settings");
   await expect(page.getByText(/user\.deleted/).first()).toBeVisible();
 });

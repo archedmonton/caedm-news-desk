@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, ClipboardList, Inbox, LayoutDashboard, LogOut, Menu, Newspaper, Radio, Settings, UserCog, X } from "lucide-react";
+import { Bell, BookOpen, ClipboardList, Inbox, LayoutDashboard, LogOut, Menu, Newspaper, Radio, Settings, UserCog, Users, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -14,6 +14,8 @@ const NAV = [
   { href: "/news", label: "News Feed", icon: Newspaper },
   { href: "/follow-ups", label: "Follow-ups", icon: ClipboardList },
   { href: "/sources", label: "Sources", icon: Radio },
+  { href: "/notifications", label: "Notifications & alerts", icon: Bell },
+  { href: "/team", label: "Team management", icon: Users, adminOnly: true },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -30,6 +32,7 @@ function isActive(pathname: string, href: string) {
 export function AppShell({
   user,
   roleLabel,
+  canManageStaff,
   developer,
   latestStoryId,
   lastRefreshAt,
@@ -39,6 +42,7 @@ export function AppShell({
 }: {
   user: { name: string; email: string; role: string };
   roleLabel: string;
+  canManageStaff: boolean;
   developer: { name: string; email: string };
   latestStoryId: number;
   lastRefreshAt: number | null;
@@ -52,7 +56,7 @@ export function AppShell({
 
   const nav = (
     <nav aria-label="Main" className="flex flex-col gap-0.5">
-      {NAV.map(({ href, label, icon: Icon }) => (
+      {NAV.filter((n) => !n.adminOnly || canManageStaff).map(({ href, label, icon: Icon }) => (
         <Link
           key={href}
           href={href}
@@ -64,7 +68,7 @@ export function AppShell({
           {href === "/follow-ups" && counts.followUps > 0 ? (
             <span className="rounded-full bg-maroon-100 px-1.5 text-[11px] text-maroon-800">{counts.followUps}</span>
           ) : null}
-          {href === "/" && counts.accessRequests > 0 ? (
+          {(href === "/" || href === "/team") && counts.accessRequests > 0 ? (
             <span className="rounded-full bg-gold-500 px-1.5 text-[11px] font-medium text-maroon-900" title="Pending access requests">
               {counts.accessRequests}
             </span>

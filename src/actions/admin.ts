@@ -151,7 +151,7 @@ export async function inviteStaffAction(_p: ActionState, fd: FormData): Promise<
       .parse(String(fd.get("name") ?? ""));
     const role = z.enum(ROLES).parse(fd.get("role"));
     await createInvitation({ email, name, role, invitedBy: { id: user.id, name: user.name || user.email } });
-    revalidatePath("/settings");
+    revalidatePath("/team");
     return { ok: true, message: `Invitation sent to ${name} (${email}). It's also in Email outbox → Invitations.` };
   } catch (e) {
     return fail(e);
@@ -161,13 +161,13 @@ export async function inviteStaffAction(_p: ActionState, fd: FormData): Promise<
 export async function setStaffStatusAction(fd: FormData) {
   const user = await requireUser("manage_staff");
   await setUserStatus(id.parse(fd.get("userId")), fd.get("status") === "disabled" ? "disabled" : "active", user.id);
-  revalidatePath("/settings");
+  revalidatePath("/team");
 }
 
 export async function setStaffRoleAction(fd: FormData) {
   const user = await requireUser("manage_staff");
   await setUserRole(id.parse(fd.get("userId")), z.enum(ROLES).parse(fd.get("role")), user.id);
-  revalidatePath("/settings");
+  revalidatePath("/team");
 }
 
 export async function deleteStaffAction(fd: FormData) {

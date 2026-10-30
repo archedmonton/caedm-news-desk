@@ -7,7 +7,7 @@ import { audit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth/session";
 import { processAlerts } from "@/lib/notify/alerts";
 import { deliverNotification } from "@/lib/notify/deliver";
-import { createDigestPreviewNotification, sendBriefNow } from "@/lib/notify/digest";
+import { sendBriefNow } from "@/lib/notify/digest";
 
 const fail = (e: unknown): ActionState => ({ error: (e as Error).message });
 
@@ -21,18 +21,6 @@ export async function sendBriefNowAction(_p: ActionState): Promise<ActionState> 
     if (r.status === "sent") return { ok: true, message: `Your brief (${stories}) was emailed to ${r.recipient}.` };
     if (r.status === "simulated") return { ok: true, message: `Your brief (${stories}) was saved to the outbox. Email delivery is simulated, so nothing was sent.` };
     return { error: `Your brief was saved but couldn't be emailed yet (${r.error ?? "delivery failed"}). It will be retried automatically.` };
-  } catch (e) {
-    return fail(e);
-  }
-}
-
-export async function saveDigestPreviewAction(_p: ActionState): Promise<ActionState> {
-  try {
-    const user = await requireUser("send_test_notifications");
-    const nid = await createDigestPreviewNotification(undefined, undefined, user.email);
-    await audit("notification.digest_preview", "notification", nid, user.id);
-    revalidatePath("/outbox");
-    return { ok: true, message: "Preview saved to the outbox. It does not affect tomorrow's scheduled briefing." };
   } catch (e) {
     return fail(e);
   }

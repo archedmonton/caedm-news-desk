@@ -5,13 +5,13 @@ import { z } from "zod";
 import type { ActionState } from "@/components/forms";
 import { can } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
-import { updateOwnAccount } from "@/lib/auth/users";
+import { updateOwnNotifications, updateOwnProfile } from "@/lib/auth/users";
 import { ROLES } from "@/lib/db/schema";
 import { approveAccessRequest, createAccessRequest, declineAccessRequest, setFeatureRequestStatus, submitFeatureRequest } from "@/lib/requests";
 import { FEATURE_REQUEST_STATUSES } from "@/lib/db/schema";
 import { BRIEF_TIMES } from "@/lib/notify/brief-schedule";
 
-const BRIEF_TIME = z.enum(["team", ...BRIEF_TIMES] as [string, ...string[]]);
+const BRIEF_TIME = z.enum(["default", ...BRIEF_TIMES] as [string, ...string[]]);
 
 const id = z.coerce.number().int().positive();
 const fail = (e: unknown): ActionState => ({ error: e instanceof z.ZodError ? "Please check the form fields." : (e as Error).message });
@@ -54,23 +54,33 @@ export async function declineAccessRequestAction(fd: FormData) {
   revalidatePath("/", "layout");
 }
 
-export async function updateAccountAction(_p: ActionState, fd: FormData): Promise<ActionState> {
+export async function updateProfileAction(_p: ActionState, fd: FormData): Promise<ActionState> {
+  try {
+    const user = await requireUser("manage_own_account");
+    await updateOwnProfile(user.id, String(fd.get("name") ?? ""));
+    revalidatePath("/", "layout");
+    return { ok: true, message: "Your profile was saved." };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function updateNotificationsAction(_p: ActionState, fd: FormData): Promise<ActionState> {
   try {
     const user = await requireUser("manage_own_account");
     const on = (k: string) => fd.get(k) === "on";
-    await updateOwnAccount(user.id, {
-      name: String(fd.get("name") ?? ""),
+    await updateOwnNotifications(user.id, {
       notifyDigest: on("notifyDigest"),
-      digestTime: ((t) => (t === "team" ? null : t))(BRIEF_TIME.parse(fd.get("digestTime") || "team")),
+      digestTime: ((t) => (t === "default" ? null : t))(BRIEF_TIME.parse(fd.get("digestTime") || "default")),
       digestDays: z.enum(["daily", "weekdays"]).catch("daily").parse(fd.get("digestDays")),
       digestScope: z.enum(["catholic", "all"]).catch("catholic").parse(fd.get("digestScope")),
       notifyAlerts: z.enum(["all", "p0", "none"]).parse(fd.get("notifyAlerts")),
       notifyAssignments: on("notifyAssignments"),
-      // Only administrators receive access-request emails; others keep the stored value unchanged (ignored).
+      // Only administrators receive access-request emails.
       notifyAccessRequests: can(user.role, "manage_staff") ? on("notifyAccessRequests") : false,
     });
     revalidatePath("/", "layout");
-    return { ok: true, message: "Your settings were saved." };
+    return { ok: true, message: `Saved. Your emails go to ${user.email}.` };
   } catch (e) {
     return fail(e);
   }

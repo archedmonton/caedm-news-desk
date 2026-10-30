@@ -31,7 +31,7 @@ export const CATHOLIC_ORG_TYPES = ["archdiocese", "catholic_partner", "catholic_
 
 export type BriefScope = "catholic" | "all";
 
-/** A personal brief: news for one person, at their time, without affecting the team brief. */
+/** A personal brief: news for one person, at their time and in their scope. */
 type BriefFor = { user: Pick<User, "id" | "name" | "email">; scope: BriefScope; scheduleLabel: string };
 
 export function sectionFor(s: Pick<Row, "priority" | "category" | "geoRelevance" | "orgType">): SectionKey {
@@ -83,8 +83,8 @@ async function windowSince(db: DB, now: number, previous: SQL) {
 }
 
 /**
- * Assemble (but do not store) a brief for `now`. The team brief skips stories an earlier team brief covered;
- * a personal brief covers everything in its own window, filtered to the person's chosen scope.
+ * Assemble (but do not store) a brief for `now`. A personal brief covers everything in its own window, filtered to
+ * the person's chosen scope. Without `personal` (the `digest:preview` CLI) it skips stories earlier team briefs covered.
  */
 export async function buildDigest(
   db: DB = getDb(),
@@ -169,101 +169,6 @@ export async function buildDigest(
   return { ...rendered, storyIds: included, windowStart, sections, followUps: followUpsOut };
 }
 
-export type DigestRunResult =
-  | { status: "disabled" | "not_due" | "already_done" }
-  | { status: "missed"; dateKey: string }
-  | { status: "created"; notificationId: number; dateKey: string; storyCount: number };
-
-/**
- * Idempotent scheduled digest. Safe to call every minute from any number of processes: the unique
- * dedupe key `digest:<Edmonton date>` guarantees at most one digest per local day.
- */
-export async function runScheduledDigest(db: DB = getDb(), now = Date.now()): Promise<DigestRunResult> {
-  const settings = await getSettings(db);
-  if (!settings.digestEnabled) return { status: "disabled" };
-  const dateKey = edmontonDateKey(now);
-  const dedupeKey = `digest:${dateKey}`;
-  const scheduled = scheduledInstantForDay(now, settings.digestTime);
-  if (now < scheduled) return { status: "not_due" };
-  if (await first(db.select({ id: notifications.id }).from(notifications).where(eq(notifications.dedupeKey, dedupeKey)))) {
-    return { status: "already_done" };
-  }
-  if (now > scheduled + CATCH_UP_HOURS * 3600_000) {
-    // Fresh installation started after today's window: nothing was missed; the first brief goes out tomorrow.
-    if (!(await first(db.select({ id: notifications.id }).from(notifications).where(eq(notifications.kind, "digest"))))) return { status: "not_due" };
-    // Worker was down through the whole window: record it visibly rather than sending a stale "morning" brief.
-    await db
-      .insert(notifications)
-      .values({
-        kind: "digest",
-        dedupeKey,
-        recipient: settings.digestRecipient,
-        subject: `Missed morning brief for ${dateKey}`,
-        status: "skipped",
-        lastError: `Worker was not running between ${settings.digestTime} and ${CATCH_UP_HOURS} h later (Edmonton time).`,
-        createdAt: now,
-      })
-      .onConflictDoNothing();
-    return { status: "missed", dateKey };
-  }
-  const built = await buildDigest(db, now);
-  const recipient = settings.digestRecipient;
-  const id = await db.transaction(async (tx) => {
-    const row = (
-      await tx
-        .insert(notifications)
-        .values({
-          kind: "digest",
-          dedupeKey,
-          recipient,
-          subject: built.subject,
-          html: built.html,
-          text: built.text,
-          status: "pending",
-          meta: { dateKey, storyCount: built.storyIds.length, windowStart: built.windowStart },
-          createdAt: now,
-        })
-        .onConflictDoNothing()
-        .returning({ id: notifications.id })
-    )[0];
-    if (!row) return null;
-    for (const storyId of built.storyIds) {
-      await tx.insert(notificationStories).values({ notificationId: row.id, storyId, kind: "digest" }).onConflictDoNothing();
-    }
-    return row.id;
-  });
-  if (!id) return { status: "already_done" };
-  await deliverNotification(id, db, now);
-  return { status: "created", notificationId: id, dateKey, storyCount: built.storyIds.length };
-}
-
-/**
- * Manual "send preview to outbox": stored as a test message addressed only to the requester; does not
- * consume stories from the real digest.
- */
-export async function createDigestPreviewNotification(db: DB = getDb(), now = Date.now(), requestedBy?: string) {
-  const settings = await getSettings(db);
-  const built = await buildDigest(db, now);
-  const row = (
-    await db
-      .insert(notifications)
-      .values({
-        kind: "test",
-        dedupeKey: `digest-preview:${now}:${Math.random().toString(36).slice(2, 8)}`,
-        recipient: requestedBy ?? settings.digestRecipient,
-        subject: `[PREVIEW] ${built.subject}`,
-        html: built.html,
-        text: built.text,
-        status: "pending",
-        meta: { preview: true, requestedBy, storyCount: built.storyIds.length },
-        createdAt: now,
-      })
-      .returning({ id: notifications.id })
-  )[0];
-  await deliverNotification(row.id, db, now);
-  return row.id;
-}
-
 const SCOPE_LABEL: Record<BriefScope, string> = { catholic: "Catholic news only", all: "all monitored news" };
 
 const briefColumns = {
@@ -315,6 +220,7 @@ export type PersonalBriefRun = { sent: number; empty: number };
 export async function runPersonalBriefs(db: DB = getDb(), now = Date.now()): Promise<PersonalBriefRun> {
   const settings = await getSettings(db);
   const out: PersonalBriefRun = { sent: 0, empty: 0 };
+  if (!settings.digestEnabled) return out;
   const people = await db
     .select(briefColumns)
     .from(users)

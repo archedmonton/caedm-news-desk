@@ -12,8 +12,8 @@ gathers their new stories in one place.
 It then:
 
 - ranks every story from **P0 Critical** to **P3 Background**, so the important ones stand out;
-- emails the team a **morning brief**, and each person their own **personal brief** at the time they choose;
-- sends an **alert** straight away when something urgent appears;
+- emails each person their own **news brief** at the time they choose;
+- sends an **alert** straight away when something urgent appears, to the people who asked for alerts;
 - tracks **follow-ups**, so every story that needs action has an owner and a due date.
 
 News Desk never writes its own summaries and never uses AI. Each story shows the publisher's own headline and short
@@ -23,14 +23,16 @@ description, with a link to the original page. Always check the original before 
 
 1. **Through the night and morning**, News Desk checks every approved source for new stories. Each new story is
    given a priority straight away.
-2. **If something urgent appears** (P0, or P1 during alert hours), an alert email goes to the team mailbox, and to
-   anyone who turned alerts on for themselves.
-3. **At 8:00 am** (the time is set in Settings), the team brief goes to the Communications mailbox.
-4. **At each person's chosen time**, their personal brief arrives.
-5. **During the day**, staff review stories, assign follow-ups and mark them covered. While anyone is signed in, News
+2. **If something urgent appears** (P0, or P1 during alert hours), an alert email goes to everyone who turned
+   alerts on.
+3. **At each person's chosen time** (8:00 am unless they pick another), their news brief arrives.
+4. **During the day**, staff review stories, assign follow-ups and mark them covered. While anyone is signed in, News
    Desk keeps checking sources, and a banner appears when new stories arrive.
 
 All times are Edmonton time, and daylight saving changes are handled automatically.
+
+**Every email goes to the person who is signed in.** There is no shared team mailbox: each person chooses what they
+receive on the **Notifications & alerts** page, and it is sent to their own work email.
 
 ## What the priorities mean
 
@@ -52,14 +54,15 @@ publisher said, not established facts.
 
 Your personal brief is a summary of new stories, emailed to you at the time you choose.
 
-**To turn it on:** go to **My account → Email notifications → My news brief** and set:
+**To turn it on:** open **Notifications & alerts** in the sidebar. The top of the page shows your **Recipient**:
+your own sign-in email. Under **My news brief**, tick **Email me a news brief** and set:
 
-- **Time:** any half hour from 5:00 am to 9:00 pm, or "Same as the team brief".
+- **Time:** any half hour from 5:00 am to 9:00 pm, or the default time (8:00 am unless an administrator changes it).
 - **Days:** every day, or weekdays only (Monday to Friday).
 - **Include:** *Catholic news only* (the Archdiocese, Catholic partners, Canadian Catholic and Vatican sources), or
   *All monitored news* (adds government and other sources).
 
-Then click **Save my settings**.
+Then click **Save my notifications**.
 
 How it behaves:
 
@@ -72,18 +75,18 @@ How it behaves:
 - It can arrive up to 15 minutes after the time you chose.
 - Every brief has a link at the bottom to change its time or content, or turn it off.
 
-**Want it right now?** In the **Email outbox**, click **Send me a brief now**. You'll get the last 24 hours
+**Want it right now?** On **Notifications & alerts** or in the **Email outbox**, click **Send me a brief now**. You'll get the last 24 hours
 immediately, with your usual Catholic-only or All-news choice. It doesn't affect your scheduled brief.
 
-## Team brief and alerts
+## Alerts
 
-The **team brief** goes to the Communications mailbox (communications@caedm.ca) every morning. Unlike personal
-briefs, it never repeats a story an earlier team brief already reported. Administrators set its time and mailbox in
-**Settings**.
+**Alerts** are short emails about P0 and P1 stories, sent as they happen, to everyone who turned them on. Choose
+yours on **Notifications & alerts → My high-priority alerts**: *P0 Critical and P1 High*, *P0 Critical only*, or
+*Off*. Alerts are off for new accounts until the person turns them on.
 
-**Alerts** are short emails about P0 and P1 stories, sent as they happen. To avoid flooding inboxes, there are at
-most 3 alerts an hour and 10 a day by default. Choose what you personally receive in **My account**: all alerts,
-P0 only, or none.
+To avoid flooding inboxes, there are at most 3 alerts an hour and 10 a day by default, and P1 alerts wait for
+alert hours (7:00 am to 9:00 pm). If nobody has alerts turned on, the alert is recorded in the outbox as *skipped*
+and the stories stay on the dashboard.
 
 ## The pages
 
@@ -121,7 +124,7 @@ From here you can change its status, assign a follow-up with a due date, or add 
 
 ### Follow-ups
 
-Everything assigned and not yet done, with overdue items flagged. Overdue follow-ups also appear in the team brief.
+Everything assigned and not yet done, with overdue items flagged. Your own follow-ups, including overdue ones, are listed in your news brief.
 When you are assigned a follow-up, you get an email, unless you turned that off in My account.
 
 ### Sources
@@ -131,8 +134,9 @@ often until it recovers; the others keep working. Administrators can add sources
 
 ### Email outbox
 
-Every email News Desk has produced: team briefs, personal briefs, alerts, invitations, requests and security
-notices. Open any message to see exactly what was sent.
+Every email News Desk has produced, with its recipient: briefs, alerts, invitations, requests and security
+notices. Older "Team brief" entries are from before every email went to individual staff. Open any message to see
+exactly what was sent.
 
 Delivery statuses:
 
@@ -145,19 +149,30 @@ Delivery statuses:
 Also on this page:
 
 - **Send me a brief now** emails you a brief immediately.
-- **Preview today's brief** shows the next team brief without sending it.
+- **Preview my brief** shows what your brief would contain right now, without sending it.
 - **Alert dry run** shows what the next alert check would do.
+
+### Notifications & alerts
+
+Where your emails go (your own work email) and what you receive: your news brief, your high-priority alerts,
+follow-up assignments, and for administrators, access requests.
+
+Administrators also see **Rules for everyone** at the bottom: whether briefs and alerts are sent at all, the default
+brief time, the lookback, alert hours, the minimum alert priority and the alert limits.
+
+### Team management (administrators)
+
+Invite people, change roles, approve or decline access requests, and disable or delete accounts.
 
 ### My account
 
-Your name, your email notifications (personal brief, alerts, follow-up assignments, and for administrators, access
-requests), and your password. Changing your password signs you out on your other devices and sends you a security
-email.
+Your name, your role and your password. Changing your password signs you out on your other devices and sends you a
+security email.
 
-### Settings (administrators)
+### Settings
 
-Staff access and roles, the team brief time and mailbox, alert hours and limits, and the keyword rules behind the
-priorities.
+How often sources are refreshed, the keyword rules behind the priorities, feature requests and the audit log.
+Only administrators can change them.
 
 ## Who can do what
 
@@ -190,7 +205,7 @@ Everyone can set up their own personal brief and use **Send me a brief now**.
 
 ## For administrators
 
-**Adding staff.** In **Settings → Staff access**, enter a colleague's full name and @caedm.ca email, choose their
+**Adding staff.** In **Team management**, enter a colleague's full name and @caedm.ca email, choose their
 role and click **Send invitation**.
 
 - They receive a personal, CAEDM-branded email addressed to them by name, with an **Accept invitation and create
@@ -221,7 +236,7 @@ always at least one administrator. Keep two administrators so someone can always
 
 **How the refresh works.** News Desk has no server running all the time. A refresh runs:
 
-- every morning before the team brief;
+- every morning around 8:00 am;
 - every few minutes while anyone is signed in;
 - every 15 minutes from the scheduler.
 

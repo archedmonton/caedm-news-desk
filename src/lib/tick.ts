@@ -4,7 +4,7 @@ import { sources } from "./db/schema";
 import { runDueChecks } from "./ingest/collector";
 import { processAlerts } from "./notify/alerts";
 import { retryDeliveries } from "./notify/deliver";
-import { runPersonalBriefs, runScheduledDigest } from "./notify/digest";
+import { runPersonalBriefs } from "./notify/digest";
 import { acquireLease, getState, releaseLease, setState } from "./settings";
 
 export type TickTrigger = "cron" | "live" | "worker" | "manual";
@@ -14,7 +14,7 @@ export type TickState = {
   durationMs: number;
   checked: number;
   newStories: number;
-  digest: string;
+  briefs: number;
   error?: string;
 };
 
@@ -22,8 +22,8 @@ export type TickState = {
 const LEASE_MS = 5 * 60_000;
 
 /**
- * One refresh: check due sources → send qualifying alerts → send the morning brief and any personal briefs that
- * are due → retry failed emails. Safe to call from anywhere at any frequency: the lease allows one run at a time across all server
+ * One refresh: check due sources → send qualifying alerts → send the personal briefs that are due → retry
+ * failed emails. Safe to call from anywhere at any frequency: the lease allows one run at a time across all server
  * instances, and every step is idempotent.
  */
 export async function runTick(opts: { trigger: TickTrigger; db?: DB; log?: (m: string) => void; force?: boolean } = { trigger: "manual" }) {
@@ -36,8 +36,6 @@ export async function runTick(opts: { trigger: TickTrigger; db?: DB; log?: (m: s
     const alert = await processAlerts(db);
     if (alert.status === "created") log(`[alerts] alert #${alert.notificationId} for ${alert.storyIds.length} stories`);
     if (alert.status === "rate_limited") log(`[alerts] suppressed: ${alert.reason}`);
-    const digest = await runScheduledDigest(db);
-    if (digest.status === "created") log(`[digest] ${digest.dateKey} created (#${digest.notificationId}, ${digest.storyCount} stories)`);
     const briefs = await runPersonalBriefs(db);
     if (briefs.sent || briefs.empty) log(`[briefs] ${briefs.sent} personal briefs sent, ${briefs.empty} with nothing new`);
     const retried = await retryDeliveries(db);
@@ -48,7 +46,7 @@ export async function runTick(opts: { trigger: TickTrigger; db?: DB; log?: (m: s
       durationMs: Date.now() - started,
       checked: checks.length,
       newStories: checks.reduce((n, c) => n + c.itemsNew, 0),
-      digest: digest.status,
+      briefs: briefs.sent,
     };
     await setState("tick", state, db);
     return { status: "ok" as const, ...state, checks, alert: alert.status };
@@ -61,7 +59,7 @@ export async function runTick(opts: { trigger: TickTrigger; db?: DB; log?: (m: s
         durationMs: Date.now() - started,
         checked: 0,
         newStories: 0,
-        digest: "error",
+        briefs: 0,
         error: (e as Error).message,
       },
       db,

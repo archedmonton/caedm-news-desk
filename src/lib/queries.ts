@@ -305,7 +305,8 @@ export async function recentAudit(limit = 40) {
     .limit(limit);
 }
 
-export async function getOverview(now = Date.now()) {
+/** `email` scopes the latest brief and alert to what the signed-in person received. */
+export async function getOverview(email: string, now = Date.now()) {
   const db = getDb();
   const day = now - 24 * 3600_000;
   const count = async (cond: SQL | undefined) =>
@@ -350,12 +351,18 @@ export async function getOverview(now = Date.now()) {
     .select()
     .from(sources)
     .where(and(eq(sources.verified, true), inArray(sources.method, ["rss", "html"])));
-  const lastDigest = await first(db.select().from(notifications).where(eq(notifications.kind, "digest")).orderBy(desc(notifications.createdAt)));
+  const lastDigest = await first(
+    db
+      .select()
+      .from(notifications)
+      .where(and(eq(notifications.kind, "brief"), eq(notifications.recipient, email)))
+      .orderBy(desc(notifications.createdAt)),
+  );
   const lastAlert = await first(
     db
       .select({ createdAt: notifications.createdAt, status: notifications.status, subject: notifications.subject })
       .from(notifications)
-      .where(eq(notifications.kind, "alert"))
+      .where(and(eq(notifications.kind, "alert"), sql`${email} = any(string_to_array(replace(${notifications.recipient}, ' ', ''), ','))`))
       .orderBy(desc(notifications.createdAt)),
   );
   const failedDeliveries = (await first(

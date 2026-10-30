@@ -163,7 +163,7 @@ export function renderAlert(opts: { now: number; stories: EmailStory[]; appUrl: 
     title: anySensitive ? "Internal Review Alert" : "High-Priority News Alert",
     preheader: top.title,
     body,
-    footerNote: "Alerts are sent only for qualifying P0/P1 items. Everything else appears in the morning briefing.",
+    footerNote: "Alerts are sent only for qualifying P0/P1 items. Everything else appears in news briefs.",
   });
   const text = [
     subject,

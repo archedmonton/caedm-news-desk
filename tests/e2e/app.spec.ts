@@ -13,7 +13,7 @@ test("overview shows monitoring summary", async ({ page }) => {
   await devSignIn(page);
   await expect(page.getByRole("main").getByText("High-priority open", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "High-priority alerts" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Morning brief" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "My news brief" })).toBeVisible();
   // Sample P0 story appears among high-priority alerts.
   await expect(page.getByRole("link", { name: /emergency closure of parish hall/ }).first()).toBeVisible();
 });
@@ -108,13 +108,20 @@ test("sources show health and admins can toggle monitoring", async ({ page }) =>
   await expect(card.getByRole("button", { name: "Disable monitoring" })).toBeVisible();
 });
 
-test("digest preview and simulated alert delivery", async ({ page }) => {
+test("brief preview and simulated alert delivery to the signed-in person", async ({ page }) => {
   await devSignIn(page);
+  await page.goto("/notifications");
+  await expect(page.getByTestId("my-recipient")).toHaveText("dev.admin@caedm.ca");
+  await page.getByRole("radio", { name: /P0 Critical and P1 High/ }).check();
+  await page.getByRole("radio", { name: /All monitored news/ }).check();
+  await page.getByRole("button", { name: "Save my notifications" }).click();
+  await expect(page.getByText("Saved. Your emails go to dev.admin@caedm.ca.")).toBeVisible();
+
   await page.goto("/outbox/preview");
-  await expect(page.getByTestId("digest-subject")).toContainText("CAEDM Morning News Brief |");
+  await expect(page.getByTestId("digest-subject")).toContainText("Your CAEDM News Brief |");
+  await expect(page.getByText(/What your brief to dev.admin@caedm.ca would contain/)).toBeVisible();
   const frame = page.frameLocator("iframe");
   await expect(frame.getByText("Top stories requiring attention")).toBeVisible();
-  await expect(frame.getByText("Outstanding Communications follow-ups")).toBeVisible();
 
   await page.goto("/outbox");
   await expect(page.getByText(/Simulated delivery/)).toBeVisible();
@@ -123,6 +130,7 @@ test("digest preview and simulated alert delivery", async ({ page }) => {
   await page.goto("/outbox?kind=alert");
   const alertRow = page.getByTestId("outbox-row").first();
   await expect(alertRow).toContainText("simulated");
+  await expect(alertRow).toContainText("dev.admin@caedm.ca");
   await alertRow.getByRole("link").click();
   await expect(page.frameLocator("iframe").getByText(/High-Priority News Alert|Internal Review Alert/)).toBeVisible();
 
@@ -130,21 +138,22 @@ test("digest preview and simulated alert delivery", async ({ page }) => {
   await page.goto("/outbox");
   await page.getByRole("button", { name: "Run alert check now" }).click();
   await expect(page.getByText("No stories currently qualify for an alert.")).toBeVisible();
-
-  await page.getByRole("button", { name: "Save preview to outbox" }).click();
-  await expect(page.getByText(/Preview saved to the outbox/)).toBeVisible();
 });
 
 test("settings save and staff invitation flow with password sign-in", async ({ page, context }) => {
   test.setTimeout(180_000); // visits many routes; dev server compiles each on first use
   await devSignIn(page);
-  await page.goto("/settings");
+  await page.goto("/notifications");
   await page.waitForLoadState("networkidle");
-  await page.getByLabel("Send time").fill("07:45");
-  await page.getByRole("button", { name: "Save briefing" }).click();
+  await expect(page.getByLabel("Recipient")).toHaveCount(0); // no shared mailbox to configure
+  await page.getByLabel("Default brief time").fill("07:45");
+  await page.getByRole("button", { name: "Save brief rules" }).click();
   await expect(page.getByText("Settings saved.").first()).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel("Send time")).toHaveValue("07:45");
+  await expect(page.getByLabel("Default brief time")).toHaveValue("07:45");
+
+  await page.goto("/team");
+  await page.waitForLoadState("networkidle");
 
   // Domain restriction
   await page.getByLabel("Full name").fill("New Staff");
@@ -193,7 +202,10 @@ test("members can review but not manage", async ({ page }) => {
   await devSignIn(page, "Dev Member");
   await page.goto("/settings");
   await expect(page.getByText("Only administrators can change settings.")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Staff access" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Team management" })).toHaveCount(0);
+  await page.goto("/notifications");
+  await expect(page.getByTestId("my-recipient")).toHaveText("dev.member@caedm.ca");
+  await expect(page.getByRole("heading", { name: "Rules for everyone" })).toHaveCount(0);
   await page.goto("/sources");
   await expect(page.getByRole("button", { name: /monitoring|Check now/ })).toHaveCount(0);
   await page.goto("/news?q=Misericordia");
@@ -206,18 +218,17 @@ test("members can review but not manage", async ({ page }) => {
   await page.getByTestId("story-row").first().getByRole("heading").getByRole("link").click();
   await expect(page.getByRole("heading", { name: "Workflow" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Change priority" })).toHaveCount(0);
-
 });
 
 test("personal brief: choose a time, send one now, and find help beside each feature", async ({ page }) => {
   await devSignIn(page);
-  await page.goto("/account");
-  await page.getByRole("checkbox", { name: /My news brief/ }).check();
+  await page.getByRole("link", { name: "Notifications & alerts" }).first().click();
+  await page.getByRole("checkbox", { name: /Email me a news brief/ }).check();
   await page.getByLabel("Time (Edmonton)").selectOption("07:30");
   await page.getByLabel("Days").selectOption("weekdays");
   await page.getByRole("radio", { name: /All monitored news/ }).check();
-  await page.getByRole("button", { name: "Save my settings" }).click();
-  await expect(page.getByText("Your settings were saved.")).toBeVisible();
+  await page.getByRole("button", { name: "Save my notifications" }).click();
+  await expect(page.getByText(/Saved\. Your emails go to/)).toBeVisible();
   await page.reload();
   await expect(page.getByText(/Currently: Weekdays at 7:30/)).toBeVisible();
   await expect(page.getByLabel("Time (Edmonton)")).toHaveValue("07:30");
@@ -230,9 +241,9 @@ test("personal brief: choose a time, send one now, and find help beside each fea
   await page.goto("/outbox");
   await page.getByRole("button", { name: "Send me a brief now", exact: true }).click();
   await expect(page.getByText(/Your brief \(\d+ stor(y|ies)\) was saved to the outbox/)).toBeVisible();
-  await page.getByRole("link", { name: "Personal briefs" }).click();
+  await page.getByRole("link", { name: "Briefs", exact: true }).click();
   await expect(page.getByTestId("outbox-row").first()).toContainText("Your CAEDM News Brief");
-  await expect(page.getByTestId("outbox-row").first()).toContainText("Personal brief");
+  await expect(page.getByTestId("outbox-row").first()).toContainText("News brief");
 });
 
 test("user guide renders from the docs with a contents list", async ({ page }) => {

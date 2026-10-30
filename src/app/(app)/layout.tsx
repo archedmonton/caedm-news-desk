@@ -15,6 +15,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
     <AppShell
       user={user}
       roleLabel={ROLE_LABELS[user.role]}
+      canManageStaff={can(user.role, "manage_staff")}
       developer={developerContact()}
       latestStoryId={latest}
       lastRefreshAt={tick?.lastTickAt ?? null}

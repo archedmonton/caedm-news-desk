@@ -1,11 +1,11 @@
 import { first } from "@/lib/db/client";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { followUps, notifications, notificationStories, stories, users } from "@/lib/db/schema";
+import { followUps, notifications, stories, users } from "@/lib/db/schema";
 import { upsertStory } from "@/lib/ingest/collector";
 import { evaluateAlerts, processAlerts } from "@/lib/notify/alerts";
 import { deliverNotification, retryDeliveries } from "@/lib/notify/deliver";
-import { buildDigest, createDigestPreviewNotification, runPersonalBriefs, runScheduledDigest, sectionFor, sendBriefNow } from "@/lib/notify/digest";
+import { buildDigest, runPersonalBriefs, sectionFor, sendBriefNow } from "@/lib/notify/digest";
 import { setTransportOverride } from "@/lib/notify/transport";
 import { DEFAULT_PRIORITY_RULES } from "@/lib/priority/rules";
 import { setSettings } from "@/lib/settings";
@@ -44,43 +44,10 @@ async function addStory(
   ))!;
 }
 
-describe("morning digest", () => {
+describe("brief contents", () => {
   let db: Awaited<ReturnType<typeof testDb>>;
   beforeEach(async () => {
     db = await testDb();
-  });
-
-  it("is not due before 08:00 Edmonton and runs once after, surviving restarts", async () => {
-    await addStory(db, "ecsd", "School council meeting in Edmonton", { now: at("2026-10-28T05:00:00Z") });
-    expect((await runScheduledDigest(db, at("2026-10-28T13:59:00Z"))).status).toBe("not_due");
-    const r = await runScheduledDigest(db, at("2026-10-28T14:01:00Z"));
-    expect(r).toMatchObject({ status: "created", dateKey: "2026-10-28", storyCount: 1 });
-    // Simulated "restart": repeated ticks and a second worker do nothing.
-    expect((await runScheduledDigest(db, at("2026-10-28T14:02:00Z"))).status).toBe("already_done");
-    expect((await runScheduledDigest(db, at("2026-10-28T16:00:00Z"))).status).toBe("already_done");
-    const rows = await db.select().from(notifications).where(eq(notifications.kind, "digest"));
-    expect(rows).toHaveLength(1);
-    expect(rows[0].status).toBe("simulated");
-    expect(rows[0].subject).toBe("CAEDM Morning News Brief | October 28, 2026");
-    expect(rows[0].recipient).toBe("communications@caedm.ca");
-  });
-
-  it("uses Edmonton wall-clock time across the DST change", async () => {
-    // Monday after fall-back: 08:00 MST = 15:00Z; 14:45Z is only 07:45 local.
-    expect((await runScheduledDigest(db, at("2026-11-02T14:45:00Z"))).status).toBe("not_due");
-    expect((await runScheduledDigest(db, at("2026-11-02T15:01:00Z"))).status).toBe("created");
-    // Late-evening UTC still belongs to the Edmonton calendar day already sent.
-    expect((await runScheduledDigest(db, at("2026-11-03T05:00:00Z"))).status).toBe("already_done");
-  });
-
-  it("never repeats a story in a later digest", async () => {
-    await addStory(db, "covenant-health", "Hospital update one", { now: at("2026-10-28T06:00:00Z") });
-    await runScheduledDigest(db, at("2026-10-28T14:01:00Z"));
-    await addStory(db, "covenant-health", "Hospital update two", { now: at("2026-10-28T20:00:00Z") });
-    const next = await runScheduledDigest(db, at("2026-10-29T14:01:00Z"));
-    expect(next).toMatchObject({ status: "created", storyCount: 1 });
-    const linked = await db.select().from(notificationStories).where(eq(notificationStories.kind, "digest"));
-    expect(new Set(linked.map((l) => l.storyId)).size).toBe(linked.length);
   });
 
   it("produces a clear no-new-stories digest", async () => {
@@ -111,22 +78,6 @@ describe("morning digest", () => {
     expect(sectionFor({ priority: "P3", category: "vatican", geoRelevance: "international", orgType: "vatican" })).toBe("canadian_vatican");
     expect(sectionFor({ priority: "P2", category: "government_policy", geoRelevance: "alberta", orgType: "government" })).toBe("alberta");
     expect(sectionFor({ priority: "P2", category: "event", geoRelevance: "edmonton", orgType: "catholic_partner" })).toBe("events");
-  });
-
-  it("records a missed digest instead of sending a stale one", async () => {
-    // Fresh install after the window: nothing to report yet.
-    expect((await runScheduledDigest(db, at("2026-10-28T19:00:00Z"))).status).toBe("not_due");
-    expect((await runScheduledDigest(db, at("2026-10-29T14:01:00Z"))).status).toBe("created");
-    // Worker down for the whole window on the following day.
-    expect((await runScheduledDigest(db, at("2026-10-30T19:00:00Z"))).status).toBe("missed");
-    const last = (await db.select().from(notifications)).at(-1)!;
-    expect(last).toMatchObject({ status: "skipped", dedupeKey: "digest:2026-10-30" });
-  });
-
-  it("preview does not consume stories from the scheduled digest", async () => {
-    await addStory(db, "ecsd", "Preview candidate", { now: at("2026-10-28T08:00:00Z") });
-    await createDigestPreviewNotification(db, at("2026-10-28T09:00:00Z"));
-    expect(await runScheduledDigest(db, at("2026-10-28T14:01:00Z"))).toMatchObject({ status: "created", storyCount: 1 });
   });
 
   it("escapes publisher text in the HTML", async () => {
@@ -165,15 +116,28 @@ describe("personal briefs", () => {
     expect(b).toMatchObject({ recipient: "reader@caedm.ca", status: "simulated", subject: "Your CAEDM News Brief | October 28, 2026" });
     expect(b.html).toContain("Hello Reader,");
     expect(b.html).toContain("Archdiocese announces Advent schedule");
-    // The team brief still has its own story and its own recipient.
-    expect(await runScheduledDigest(db, at("2026-10-28T14:01:00Z"))).toMatchObject({ status: "created", storyCount: 1 });
+    // There is no shared team mailbox any more.
+    expect(await db.select().from(notifications).where(eq(notifications.kind, "digest"))).toHaveLength(0);
   });
 
-  it("follows the team time when no time is chosen", async () => {
+  it("follows the default time when no time is chosen, in Edmonton wall-clock time across the DST change", async () => {
     await person({ digestTime: null });
     await addStory(db, "caedm", "Archdiocese news", { now: at("2026-10-28T06:00:00Z") });
     expect((await runPersonalBriefs(db, at("2026-10-28T13:59:00Z"))).sent).toBe(0);
     expect((await runPersonalBriefs(db, at("2026-10-28T14:01:00Z"))).sent).toBe(1);
+    // Monday after fall-back: 08:00 MST = 15:00Z, so 14:45Z is only 07:45 local.
+    await addStory(db, "caedm", "Archdiocese November news", { now: at("2026-11-02T06:00:00Z") });
+    expect((await runPersonalBriefs(db, at("2026-11-02T14:45:00Z"))).sent).toBe(0);
+    expect((await runPersonalBriefs(db, at("2026-11-02T15:01:00Z"))).sent).toBe(1);
+    // Late-evening UTC still belongs to the Edmonton day already sent.
+    expect((await runPersonalBriefs(db, at("2026-11-03T05:00:00Z"))).sent).toBe(0);
+  });
+
+  it("sends nothing while an administrator has turned briefs off for everyone", async () => {
+    await person();
+    await addStory(db, "caedm", "Archdiocese news", { now: at("2026-10-28T06:00:00Z") });
+    await setSettings({ digestEnabled: false }, null, db);
+    expect(await runPersonalBriefs(db, at("2026-10-28T13:31:00Z"))).toEqual({ sent: 0, empty: 0 });
   });
 
   it("filters to Catholic sources unless the person chose all news", async () => {
@@ -258,6 +222,7 @@ describe("high-priority alerts", () => {
   const night = at("2026-10-29T05:00:00Z"); // 23:00 MDT
   beforeEach(async () => {
     db = await testDb();
+    await db.insert(users).values({ email: "alerts@caedm.ca", status: "active", notifyAlerts: "all" });
   });
   afterEach(() => setTransportOverride(null));
 
@@ -272,8 +237,18 @@ describe("high-priority alerts", () => {
     expect(r.status).toBe("created");
     if (r.status === "created") expect(r.storyIds.sort()).toEqual([p0, p1].sort());
     const alert = (await first(db.select().from(notifications).where(eq(notifications.kind, "alert"))))!;
-    expect(alert.status).toBe("simulated");
+    expect(alert).toMatchObject({ status: "simulated", recipient: "alerts@caedm.ca" });
     expect(alert.subject).toMatch(/P0 News Alert: 2 high-priority stories/);
+    expect((await processAlerts(db, noon + 60_000)).status).toBe("none");
+  });
+
+  it("records the alert without emailing anyone when nobody has alerts turned on", async () => {
+    await db.update(users).set({ notifyAlerts: "none" });
+    await addStory(db, "caedm", "Archbishop of Edmonton hospitalized in emergency", { now: noon - 60_000 });
+    expect(await processAlerts(db, noon)).toMatchObject({ status: "rate_limited", reason: "No one has turned on high-priority alerts" });
+    expect(await first(db.select().from(notifications))).toMatchObject({ kind: "alert", status: "skipped", recipient: "" });
+    // Those stories are not alerted later, when the news is stale.
+    await db.update(users).set({ notifyAlerts: "all" });
     expect((await processAlerts(db, noon + 60_000)).status).toBe("none");
   });
 

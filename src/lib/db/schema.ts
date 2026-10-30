@@ -45,9 +45,9 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash"),
   /** The application's developer (help & support contact). Protected from demotion/disablement. */
   isDeveloper: boolean("is_developer").notNull().default(false),
-  // Personal email notification preferences (in addition to the team mailbox in Settings).
+  // Email preferences. Everything is sent to this account's own email; there is no shared mailbox.
   notifyDigest: boolean("notify_digest").notNull().default(false),
-  /** Personal brief time, "HH:MM" Edmonton; null follows the team brief's time. */
+  /** Personal brief time, "HH:MM" Edmonton; null follows the default brief time in settings. */
   digestTime: text("digest_time"),
   digestDays: text("digest_days", { enum: ["daily", "weekdays"] })
     .notNull()

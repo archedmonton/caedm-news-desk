@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { DB } from "../db/client";
 import { users } from "../db/schema";
 
-/** Comma-separated, de-duplicated recipient list (team mailbox first). */
+/** Comma-separated, de-duplicated recipient list. */
 export function joinRecipients(...lists: (string | string[] | null | undefined)[]): string {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -20,17 +20,14 @@ export function joinRecipients(...lists: (string | string[] | null | undefined)[
 
 const active = eq(users.status, "active");
 
-/** Users choosing "p0" only receive alerts that contain at least one P0 story. */
-export async function alertRecipients(db: DB, teamAddress: string, containsP0: boolean) {
+/** Alerts go only to people who turned them on. "p0" users only get alerts that contain a P0 story. */
+export async function alertRecipients(db: DB, containsP0: boolean) {
   const prefs = containsP0 ? (["all", "p0"] as const) : (["all"] as const);
   const personal = await db
     .select({ email: users.email })
     .from(users)
     .where(and(active, inArray(users.notifyAlerts, [...prefs])));
-  return joinRecipients(
-    teamAddress,
-    personal.map((p) => p.email),
-  );
+  return joinRecipients(personal.map((p) => p.email));
 }
 
 export async function accessRequestRecipients(db: DB) {

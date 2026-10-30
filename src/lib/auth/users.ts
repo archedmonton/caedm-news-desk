@@ -206,7 +206,7 @@ export async function deleteUser(userId: number, actorId: number, db: DB = getDb
 
 export type NotificationPreferences = {
   notifyDigest: boolean;
-  /** "HH:MM" Edmonton, or null to follow the team brief's time. */
+  /** "HH:MM" Edmonton, or null to follow the default brief time. */
   digestTime?: string | null;
   digestDays?: "daily" | "weekdays";
   digestScope?: "catholic" | "all";
@@ -215,15 +215,20 @@ export type NotificationPreferences = {
   notifyAccessRequests: boolean;
 };
 
-/** Each account manages its own name and email notification preferences. */
-export async function updateOwnAccount(userId: number, input: { name: string } & NotificationPreferences, db: DB = getDb()) {
-  const name = input.name.trim().slice(0, 100);
+export async function updateOwnProfile(userId: number, nameRaw: string, db: DB = getDb()) {
+  const name = nameRaw.trim().slice(0, 100);
   if (!name) throw new Error("Please enter your name.");
+  await db.update(users).set({ name, updatedAt: Date.now() }).where(eq(users.id, userId));
+  await audit("account.updated", "user", userId, userId, { name }, db);
+}
+
+/** Every email goes to the person's own sign-in address; they only choose what they receive. */
+export async function updateOwnNotifications(userId: number, prefs: NotificationPreferences, db: DB = getDb()) {
   await db
     .update(users)
-    .set({ ...input, name, updatedAt: Date.now() })
+    .set({ ...prefs, updatedAt: Date.now() })
     .where(eq(users.id, userId));
-  await audit("account.updated", "user", userId, userId, { ...input, name }, db);
+  await audit("account.notifications_updated", "user", userId, userId, prefs, db);
 }
 
 /**

@@ -1,4 +1,5 @@
 import { AlertTriangle, ArrowRight, CheckCircle2, CircleAlert, Clock, Inbox, Newspaper } from "lucide-react";
+import { eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AccessRequestsCard } from "@/components/access-requests";
@@ -11,6 +12,9 @@ import { can } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
 import { getOverview } from "@/lib/queries";
 import { listAccessRequests } from "@/lib/requests";
+import { first, getDb } from "@/lib/db/client";
+import { users } from "@/lib/db/schema";
+import { briefScheduleLabel } from "@/lib/notify/brief-schedule";
 import { getSettings } from "@/lib/settings";
 import { formatDateTime, formatLongDate, formatRelative } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -37,7 +41,8 @@ function Stat({ label, value, sub, href, tone }: { label: string; value: number 
 export default async function OverviewPage() {
   const user = await requireUser();
   const now = Date.now();
-  const o = await getOverview(now);
+  const o = await getOverview(user.email, now);
+  const me = (await first(getDb().select().from(users).where(eq(users.id, user.id))))!;
   const requests = can(user.role, "manage_staff") ? await listAccessRequests("dashboard") : [];
   const canReview = can(user.role, "review_news");
   const settings = await getSettings();
@@ -189,9 +194,12 @@ export default async function OverviewPage() {
 
         <div className="space-y-6">
           <Card>
-            <CardHeader title="Morning brief" description={`Daily at ${settings.digestTime} to ${settings.digestRecipient}`} />
+            <CardHeader
+              title="My news brief"
+              description={me.notifyDigest ? `${briefScheduleLabel(me, settings.digestTime)} to ${me.email}` : `Off. Turn it on to get news at ${me.email}.`}
+            />
             <div className="space-y-3 px-5 py-4 text-sm">
-              {!settings.digestEnabled ? <p className="text-p1">The scheduled brief is disabled in Settings.</p> : null}
+              {!settings.digestEnabled ? <p className="text-p1">News briefs are turned off for everyone by an administrator.</p> : null}
               {o.lastDigest ? (
                 <div>
                   <div className="text-muted">Latest</div>
@@ -204,15 +212,20 @@ export default async function OverviewPage() {
                   </div>
                 </div>
               ) : (
-                <p className="text-muted">No brief has been generated yet.</p>
+                <p className="text-muted">No brief has been sent to you yet.</p>
               )}
               <div>
-                <div className="text-muted">Latest alert</div>
+                <div className="text-muted">Latest alert to you</div>
                 <div className="text-ink">{o.lastAlert ? `${formatDateTime(o.lastAlert.createdAt)} · ${o.lastAlert.status}` : "None sent"}</div>
               </div>
-              <Link href="/outbox/preview" className="inline-flex items-center gap-1 text-cobalt-700 hover:underline">
-                Preview today&apos;s brief <ArrowRight className="size-3.5" />
-              </Link>
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                <Link href="/notifications" className="inline-flex items-center gap-1 text-cobalt-700 hover:underline">
+                  Notifications &amp; alerts <ArrowRight className="size-3.5" />
+                </Link>
+                <Link href="/outbox/preview" className="inline-flex items-center gap-1 text-cobalt-700 hover:underline">
+                  Preview my brief <ArrowRight className="size-3.5" />
+                </Link>
+              </div>
             </div>
           </Card>
           <Card>

@@ -30,7 +30,7 @@ export async function GET(req: Request) {
       status: r.status,
       checked: r.checked,
       newStories: r.newStories,
-      digest: r.digest,
+      briefs: r.briefs,
       alert: r.alert,
       durationMs: r.durationMs,
       failedSources: r.checks.filter((c) => c.status === "error").map((c) => c.slug),

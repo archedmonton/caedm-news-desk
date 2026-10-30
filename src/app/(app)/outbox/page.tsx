@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { Eye, Inbox, Send } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { retryNotificationAction, runAlertsNowAction, saveDigestPreviewAction, sendBriefNowAction } from "@/actions/notifications";
+import { retryNotificationAction, runAlertsNowAction, sendBriefNowAction } from "@/actions/notifications";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { HelpHint } from "@/components/help";
 import { PageHeader } from "@/components/page-header";
@@ -32,8 +32,7 @@ const STATUS_STYLE: Record<string, string> = {
 
 const KINDS = [
   { key: "", label: "All" },
-  { key: "digest", label: "Team briefs" },
-  { key: "brief", label: "Personal briefs" },
+  { key: "brief", label: "Briefs" },
   { key: "alert", label: "Alerts" },
   { key: "invite", label: "Invitations" },
   { key: "test", label: "Previews" },
@@ -43,7 +42,8 @@ const KINDS = [
   { key: "security", label: "Security" },
 ];
 
-const KIND_LABEL: Record<string, string> = { digest: "Team brief", brief: "Personal brief", test: "Preview" };
+// "digest" rows are team briefs from before every email went to individual staff.
+const KIND_LABEL: Record<string, string> = { digest: "Team brief", brief: "News brief", test: "Preview" };
 
 export default async function OutboxPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireUser();
@@ -66,11 +66,11 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
     <>
       <PageHeader
         title="Email outbox"
-        description="Every brief, alert and invitation, with its delivery status. Messages are stored even when delivery is simulated."
+        description="Every brief, alert and invitation, with its recipient and delivery status. Messages are stored even when delivery is simulated."
         actions={
           <Button asChild variant="outline">
             <Link href="/outbox/preview">
-              <Eye /> Preview today&apos;s brief
+              <Eye /> Preview my brief
             </Link>
           </Button>
         }
@@ -85,7 +85,7 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
               {me?.notifyDigest
                 ? `Scheduled: ${briefScheduleLabel(me, settings.digestTime)}, ${me.digestScope === "catholic" ? "Catholic news only" : "all monitored news"}.`
                 : "No scheduled brief."}{" "}
-              <Link href="/account#brief" className="text-cobalt-700 hover:underline">
+              <Link href="/notifications#brief" className="text-cobalt-700 hover:underline">
                 {me?.notifyDigest ? "Change" : "Set one up"}
               </Link>
             </p>
@@ -103,7 +103,7 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
         </p>
       ) : null}
 
-      <div className="mb-6 grid gap-6 lg:grid-cols-2">
+      <div className="mb-6">
         <Card>
           <CardHeader title="Alert dry run" description="What the next alert check would do right now. Read-only." />
           <div className="space-y-3 px-5 py-4 text-sm">
@@ -147,27 +147,6 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
             ) : null}
           </div>
         </Card>
-        <Card>
-          <CardHeader title="Morning brief" description="Preview the brief without affecting the scheduled delivery." />
-          <div className="space-y-3 px-5 py-4 text-sm">
-            <p className="text-muted">
-              The scheduled brief is generated once per Edmonton day by the worker. A preview never marks stories as delivered, so they will still
-              appear in the real brief.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button asChild size="sm">
-                <Link href="/outbox/preview">Open live preview</Link>
-              </Button>
-              {admin ? (
-                <ActionForm action={saveDigestPreviewAction}>
-                  <SubmitButton size="sm" variant="outline" pendingText="Saving…">
-                    Save preview to outbox
-                  </SubmitButton>
-                </ActionForm>
-              ) : null}
-            </div>
-          </div>
-        </Card>
       </div>
 
       <nav aria-label="Message types" className="mb-3 flex flex-wrap gap-1 rounded-lg border border-line bg-surface p-1 text-sm sm:w-fit">
@@ -208,7 +187,7 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
                       <Link href={`/outbox/${n.id}`} className="font-medium text-ink hover:text-cobalt-700 hover:underline">
                         {n.subject}
                       </Link>
-                      <div className="text-xs text-subtle">to {n.recipient}</div>
+                      <div className="text-xs text-subtle">to {n.recipient || "no one (nobody has this turned on)"}</div>
                       {n.lastError ? <div className="text-xs text-p0">{n.lastError}</div> : null}
                     </td>
                     <td className="px-3 py-2.5">

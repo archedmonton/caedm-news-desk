@@ -16,8 +16,9 @@ idempotent routine (`runTick`). A database lease lets only one refresh run at a 
    - `vercel.json` calls `/api/cron/tick` at 14:00 UTC and 15:00 UTC. Hobby crons fire somewhere within
      that hour.
    - In summer (MDT) the 14:00 UTC call lands at 8:xx local; in winter (MST) the 15:00 UTC call does.
-   - Each run checks all sources, sends qualifying alerts, then sends the morning brief. The brief is sent at
-     most once per Edmonton day, so the "extra" call does nothing.
+   - Each run checks all sources, sends qualifying alerts, then sends the briefs that are due (everyone on the
+     default 8:00 am time). Each brief is sent at most once per person per Edmonton day, so the "extra" call does
+     nothing.
 2. **While anyone is signed in: live refresh.**
    - The dashboard asks `/api/live` once a minute.
    - When sources are due (default every 15 minutes, configurable in Settings), the server refreshes them in
@@ -32,8 +33,8 @@ idempotent routine (`runTick`). A database lease lets only one refresh run at a 
 Notes:
 - **Without step 3**, personal briefs only go out when the 8 AM run or a signed-in session happens within 4
   hours of each person's time, and P0/P1 alerts wait for the next refresh.
-- **Briefs:** the team brief and each personal brief are sent at most once per Edmonton day (unique
-  `dedupe_key`), however many refreshes run.
+- **Briefs:** each person's brief is sent at most once per Edmonton day (unique `dedupe_key`), however many refreshes
+  run. There is no shared team mailbox; every email goes to the signed-in person's own address.
 
 ## 0. The production environment file
 
@@ -89,7 +90,7 @@ the same directly, and `npm run check:prod` tests the database and SMTP login wi
 
 Set a password with the link and sign in. You can change it later under **My account → Password**.
 
-Invite everyone else from **Settings → Staff access**, or approve **Request access** submissions on the
+Invite everyone else from **Team management**, or approve **Request access** submissions on the
 Overview. Those emails are sent from Vercel, so Vercel must be able to reach the SMTP server.
 
 **SMTP reachability (IT).**
@@ -99,8 +100,8 @@ Overview. Those emails are sent from Vercel, so Vercel must be able to reach the
   (`smtp.office365.com:587`), and update the `SMTP_*` / `GRAPH_*` variables.
 - Failed emails show in **Email outbox** with the error and are retried automatically.
 
-**Before going live**, set the brief recipient to yourself, use **Email outbox → Save preview to outbox**,
-confirm it arrives, then set it back to `communications@caedm.ca`.
+**Before going live**, open **Notifications & alerts** and click **Send me a brief now**, then confirm it arrives in
+your own mailbox.
 
 ## 4. Scheduler: refresh every 15 minutes
 

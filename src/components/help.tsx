@@ -16,8 +16,8 @@ const ABOUT: Section = {
   body: (
     <p>
       News Desk watches approved Catholic and Edmonton news sources for the Archdiocese&apos;s Communications team. It ranks stories by importance,
-      emails the team a morning brief, sends each person their own brief at the time they choose, alerts on urgent stories, and tracks follow-ups
-      so nothing is missed.
+      sends each person their own news brief at the time they choose, alerts on urgent stories, and tracks follow-ups so nothing is missed. Every
+      email goes to the signed-in person&apos;s own work address.
     </p>
   ),
 };
@@ -45,17 +45,37 @@ const TOPICS = {
     body: (
       <p>
         Builds your personal brief from the last 24 hours, using your <em>Catholic news only</em> or <em>All monitored news</em> choice, and emails it
-        to you right away. It doesn&apos;t affect your scheduled brief or the team brief. You can send one per minute.
+        to you right away. It doesn&apos;t affect your scheduled brief. You can send one per minute.
       </p>
     ),
   },
-  "team-brief": {
-    title: "The team morning brief",
+  "my-alerts": {
+    title: "Your high-priority alerts",
     body: (
-      <p>
-        The team brief goes to the Communications mailbox every morning at the time set in Settings. Unlike personal briefs, it never repeats a
-        story it has already reported.
-      </p>
+      <ul className="list-disc space-y-1 pl-5">
+        <li>Separate emails for urgent stories, sent to your own work email only if you turn them on.</li>
+        <li>
+          <strong>P0 Critical and P1 High</strong>: every alert. <strong>P0 Critical only</strong>: just the most serious. <strong>Off</strong>: check
+          the dashboard instead.
+        </li>
+        <li>Alerts follow the shared alert hours and limits set by administrators. P0 may be allowed at any time.</li>
+      </ul>
+    ),
+  },
+  "alert-rules": {
+    title: "Rules for everyone (administrators)",
+    body: (
+      <ul className="list-disc space-y-1 pl-5">
+        <li>These rules apply to everyone; there is no shared mailbox. Each person chooses what they receive at their own address.</li>
+        <li>
+          <strong>Default brief time</strong> is used by people who don&apos;t pick their own. <strong>Lookback</strong> is the shortest period a
+          brief covers.
+        </li>
+        <li>
+          <strong>Alert hours</strong> and the hourly and daily <strong>limits</strong> stop alert floods. Stories held back stay on the dashboard
+          and appear in the next brief.
+        </li>
+      </ul>
     ),
   },
   "email-status": {
@@ -92,7 +112,7 @@ const PRIORITIES: Section = {
         alert hours.
       </li>
       <li>
-        <strong>P2 Standard</strong>: relevant community news, events and routine announcements, included in the morning brief.
+        <strong>P2 Standard</strong>: relevant community news, events and routine announcements, included in news briefs.
       </li>
       <li>
         <strong>P3 Background</strong>: context, including routine international news.
@@ -179,7 +199,7 @@ const CONTEXT: Record<string, { heading: string; sections: Section[] }> = {
         body: (
           <ul className="list-disc space-y-1 pl-5">
             <li>Assign stories from the story page; assignees get an email if they have that turned on in My account.</li>
-            <li>Overdue items are flagged and listed in the morning brief.</li>
+            <li>Overdue items are flagged and listed in news briefs.</li>
             <li>Mark covered when Communications has acted; archive when no action is needed.</li>
           </ul>
         ),
@@ -211,6 +231,29 @@ const CONTEXT: Record<string, { heading: string; sections: Section[] }> = {
     heading: "Settings",
     sections: [
       {
+        title: "What's here",
+        body: (
+          <p>
+            How often sources are refreshed, the priority keyword rules, feature requests and the audit log. Email choices are in{" "}
+            <strong>Notifications &amp; alerts</strong>; people and roles are in <strong>Team management</strong>.
+          </p>
+        ),
+      },
+    ],
+  },
+  "/team": {
+    heading: "Team management",
+    sections: [
+      {
+        title: "Adding people",
+        body: (
+          <p>
+            Enter the person&apos;s full name and @caedm.ca email, choose a role and send the invitation. They get a personal email with a one-time link,
+            valid for 72 hours, to create their password. Requests from the sign-in page appear here and on the Overview.
+          </p>
+        ),
+      },
+      {
         title: "Roles",
         body: (
           <ul className="list-disc space-y-1 pl-5">
@@ -236,7 +279,7 @@ const CONTEXT: Record<string, { heading: string; sections: Section[] }> = {
         title: "Emails",
         body: (
           <p>
-            Every team brief, personal brief, alert, invitation and request is listed here with its delivery status. Open a message to see exactly
+            Every brief, alert, invitation and request is listed here with its delivery status. Open a message to see exactly
             what was sent.
           </p>
         ),
@@ -249,15 +292,30 @@ const CONTEXT: Record<string, { heading: string; sections: Section[] }> = {
     heading: "My account",
     sections: [
       {
-        title: "Your email notifications",
+        title: "Your account",
         body: (
           <p>
-            The team mailbox always receives the team brief and alerts. Here you choose what <em>you</em> also receive at your own address: your
-            personal brief, high-priority alerts (all or P0 only), follow-up assignments and, for administrators, access requests.
+            Your name, role and password. To choose which emails you receive, open <strong>Notifications &amp; alerts</strong>.
+          </p>
+        ),
+      },
+    ],
+  },
+  "/notifications": {
+    heading: "Notifications & alerts",
+    sections: [
+      {
+        title: "Where your emails go",
+        body: (
+          <p>
+            Every News Desk email goes to the work email you sign in with. There is no shared mailbox: each person chooses their own brief and
+            alerts here.
           </p>
         ),
       },
       TOPICS["personal-brief"],
+      TOPICS["my-alerts"],
+      TOPICS["send-now"],
     ],
   },
   "/guide": {

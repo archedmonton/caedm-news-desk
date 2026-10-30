@@ -2,12 +2,20 @@ import { first } from "@/lib/db/client";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { hashPassword } from "@/lib/auth/password";
-import { authenticate, changePassword, createInvitation, deleteUser, setUserRole, setUserStatus, updateOwnAccount } from "@/lib/auth/users";
+import {
+  authenticate,
+  changePassword,
+  createInvitation,
+  deleteUser,
+  setUserRole,
+  setUserStatus,
+  updateOwnNotifications,
+  updateOwnProfile,
+} from "@/lib/auth/users";
 import { accessRequests, auditLogs, featureRequests, followUpNotes, followUps, invitations, notifications, sessions, stories, users } from "@/lib/db/schema";
 import { ensureDeveloperAdmin } from "@/lib/db/seed";
 import { upsertStory } from "@/lib/ingest/collector";
 import { processAlerts } from "@/lib/notify/alerts";
-import { runScheduledDigest } from "@/lib/notify/digest";
 import { notifyAssignment } from "@/lib/notify/personal";
 import { joinRecipients } from "@/lib/notify/recipients";
 import { DEFAULT_PRIORITY_RULES } from "@/lib/priority/rules";
@@ -268,20 +276,14 @@ describe("personal email notifications", () => {
     expect(joinRecipients("Team@caedm.ca", ["a@caedm.ca", "team@caedm.ca"], null)).toBe("team@caedm.ca, a@caedm.ca");
   });
 
-  it("keeps the team brief to the team mailbox and respects P0-only alert preferences", async () => {
+  it("sends alerts only to the people who turned them on, at their own addresses", async () => {
     const reader = await addUser(db, "reader@caedm.ca");
     await addUser(db, "all.alerts@caedm.ca", { notifyAlerts: "all" });
     await addUser(db, "p0.only@caedm.ca", { notifyAlerts: "p0" });
-    await addUser(db, "disabled@caedm.ca", { notifyDigest: true, status: "disabled" });
-    await updateOwnAccount(
-      reader.id,
-      { name: "Reader", notifyDigest: true, notifyAlerts: "none", notifyAssignments: true, notifyAccessRequests: false },
-      db,
-    );
-
-    await runScheduledDigest(db, Date.parse("2026-10-28T14:01:00Z"));
-    // Opted-in people get their own personal brief instead (see "personal briefs").
-    expect((await first(db.select().from(notifications).where(eq(notifications.kind, "digest"))))!.recipient).toBe("communications@caedm.ca");
+    await addUser(db, "disabled@caedm.ca", { notifyAlerts: "all", status: "disabled" });
+    await updateOwnProfile(reader.id, "Reader", db);
+    await updateOwnNotifications(reader.id, { notifyDigest: true, notifyAlerts: "none", notifyAssignments: true, notifyAccessRequests: false }, db);
+    expect(await first(db.select().from(users).where(eq(users.id, reader.id)))).toMatchObject({ name: "Reader", notifyDigest: true });
 
     const opts = { now: NOW - 60_000, rules: DEFAULT_PRIORITY_RULES, baseline: false };
     const item = (title: string) => ({
@@ -296,13 +298,13 @@ describe("personal email notifications", () => {
     await upsertStory(db, await sourceBySlug(db, "covenant-health"), item("Misericordia hospital announces new safety model"), opts);
     await processAlerts(db, NOW);
     expect((await first(db.select().from(notifications).where(eq(notifications.kind, "alert"))))!.recipient).toBe(
-      "communications@caedm.ca, all.alerts@caedm.ca",
+      "all.alerts@caedm.ca",
     );
 
     await upsertStory(db, await sourceBySlug(db, "caedm"), item("Archbishop of Edmonton hospitalized in emergency"), { ...opts, now: NOW + 60_000 });
     await processAlerts(db, NOW + 120_000);
     const p0Alert = (await db.select().from(notifications).where(eq(notifications.kind, "alert"))).at(-1)!;
-    expect(p0Alert.recipient).toBe("communications@caedm.ca, all.alerts@caedm.ca, p0.only@caedm.ca");
+    expect(p0Alert.recipient).toBe("all.alerts@caedm.ca, p0.only@caedm.ca");
   });
 
   it("emails the assignee unless they assigned themselves or opted out", async () => {

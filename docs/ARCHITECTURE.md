@@ -255,6 +255,13 @@ overwrites them.
 | Manager | Member rights plus priority overrides, brief/alert tools, on-demand source checks |
 | Member | Read and review stories, follow-ups and notes, submit links |
 
+**Emails go to individuals (2026-10-30).** There is no shared team mailbox: the `digestRecipient` and
+`alertRecipient` settings and the scheduled team brief (`runScheduledDigest`) were removed. Each person's brief and
+alerts go to their own sign-in email, chosen on `/notifications`. Alerts with nobody opted in are stored as
+`skipped` with an empty recipient, so the stories aren't alerted later. Admin-only "rules for everyone" (briefs
+on/off, default time, lookback, alert hours and limits) are on the same page; staff and access requests are on
+`/team`.
+
 The Viewer role was retired on 2026-10-30 (migration `0002`, data-only: viewers became members).
 
 - **Role changes.** Admins can promote anyone (including to admin) and demote other admins, but never change their

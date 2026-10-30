@@ -111,7 +111,7 @@ export async function approveAccessRequest(id: number, role: Role, admin: { id: 
   const r = await getPending(id, db);
   const existing = await first(db.select().from(users).where(eq(users.email, r.email)));
   if (existing?.status !== "active") {
-    await createInvitation({ email: r.email, role, invitedBy: admin }, db, now);
+    await createInvitation({ email: r.email, name: r.name, role, invitedBy: admin }, db, now);
   }
   await db
     .update(accessRequests)

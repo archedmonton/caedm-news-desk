@@ -1,4 +1,5 @@
-import type { Priority } from "../../db/schema";
+import { ROLE_DESCRIPTIONS, ROLE_LABELS } from "../../auth/permissions";
+import type { Priority, Role } from "../../db/schema";
 import { formatDateTime, formatLongDate, formatTime } from "../../time";
 import { COLORS, emailLayout, esc, priorityPill, reviewPill, safeHref } from "./layout";
 
@@ -177,16 +178,66 @@ export function renderAlert(opts: { now: number; stories: EmailStory[]; appUrl: 
   return { subject, html, text };
 }
 
-export function renderInvite(opts: { inviteUrl: string; role: string; invitedBy: string; expiresAt: number }): RenderedEmail {
-  const subject = "Your invitation to CAEDM News Desk";
+export function renderInvite(opts: {
+  name: string;
+  email: string;
+  inviteUrl: string;
+  role: Role;
+  invitedBy: string;
+  expiresAt: number;
+  appUrl: string;
+  support: { name: string; email: string };
+}): RenderedEmail {
+  const subject = "Your invitation to join CAEDM News Desk";
+  const greeting = opts.name ? `Dear ${opts.name},` : "Hello,";
+  const role = ROLE_LABELS[opts.role];
+  const expires = `${formatDateTime(opts.expiresAt)} (Edmonton time)`;
+  const rows: [string, string][] = [
+    ...(opts.name ? ([["Name", opts.name]] as [string, string][]) : []),
+    ["Sign-in email", opts.email],
+    ["Role", `${role}: ${ROLE_DESCRIPTIONS[opts.role]}`],
+    ["Invited by", opts.invitedBy],
+  ];
+  const steps = [
+    "Select <strong>Accept invitation and create password</strong> below.",
+    "Confirm your name and choose a password of at least 12 characters.",
+    `You'll be signed in straight away. Next time, sign in at <a href="${safeHref(opts.appUrl)}" style="color:${COLORS.accent}">${esc(opts.appUrl.replace(/^https?:\/\//, ""))}</a> with your work email.`,
+  ];
+  const p = "font-size:14px;line-height:1.6;margin:14px 0";
   const html = emailLayout({
+    kind: "account",
     title: "You're invited to CAEDM News Desk",
-    preheader: "Set up your account",
-    body: `<p style="font-size:14px;line-height:1.6;margin-top:16px">${esc(opts.invitedBy)} invited you to CAEDM News Desk as <strong>${esc(opts.role === "admin" ? "Administrator" : "Communications")}</strong>.</p>
-<p style="margin:20px 0"><a href="${safeHref(opts.inviteUrl)}" style="display:inline-block;padding:10px 18px;background:${COLORS.accent};color:#fff;border-radius:6px;text-decoration:none;font-weight:600">Accept invitation</a></p>
-<p style="font-size:12px;color:${COLORS.muted}">This single-use link expires ${esc(formatDateTime(opts.expiresAt))} (Edmonton time). If you were not expecting it, ignore this email.</p>`,
+    preheader: `${opts.invitedBy} invited you to join CAEDM News Desk as ${role}.`,
+    body: `<p style="${p};margin-top:18px">${esc(greeting)}</p>
+<p style="${p}">${esc(opts.invitedBy)} has invited you to join <strong>CAEDM News Desk</strong>, the Communications team's news-monitoring service for the Catholic Archdiocese of Edmonton. It gathers news from trusted Catholic and community sources, highlights what needs attention and can send you a daily news brief.</p>
+${detailRows(rows)}
+<p style="${p};font-weight:600;margin-bottom:6px">To get started</p>
+<ol style="font-size:14px;line-height:1.6;margin:0 0 4px 0;padding-left:20px">${steps.map((t) => `<li style="margin:2px 0">${t}</li>`).join("")}</ol>
+${button(opts.inviteUrl, "Accept invitation and create password")}
+<p style="font-size:12px;line-height:1.5;color:${COLORS.muted};margin:0 0 14px 0">If the button doesn't work, copy this link into your browser:<br><a href="${safeHref(opts.inviteUrl)}" style="color:${COLORS.accent};word-break:break-all">${esc(opts.inviteUrl)}</a></p>
+<p style="font-size:13px;line-height:1.6;color:${COLORS.muted};margin:14px 0">For your security, this link works once and expires ${esc(expires)}. If it expires, ask an administrator to send a new one. Not expecting this invitation? You can safely ignore it; no account is created until it is accepted.</p>
+<p style="${p}">Questions? Contact ${esc(opts.support.name)} at <a href="mailto:${esc(opts.support.email)}" style="color:${COLORS.accent}">${esc(opts.support.email)}</a>.</p>
+<p style="${p}">With thanks,<br><strong>Communications</strong><br>Catholic Archdiocese of Edmonton</p>`,
   });
-  const text = `${subject}\n\n${opts.invitedBy} invited you as ${opts.role}.\nAccept: ${opts.inviteUrl}\nExpires ${formatDateTime(opts.expiresAt)}.`;
+  const text = [
+    greeting,
+    "",
+    `${opts.invitedBy} has invited you to join CAEDM News Desk, the Communications team's news-monitoring service for the Catholic Archdiocese of Edmonton.`,
+    "",
+    ...rows.map(([k, v]) => `${k}: ${v}`),
+    "",
+    "To get started:",
+    "1. Open the link below to accept the invitation and create your password.",
+    "2. Confirm your name and choose a password of at least 12 characters.",
+    `3. You'll be signed in straight away. Next time, sign in at ${opts.appUrl} with your work email.`,
+    "",
+    opts.inviteUrl,
+    "",
+    `This link works once and expires ${expires}. Not expecting it? You can safely ignore this email.`,
+    `Questions? Contact ${opts.support.name} at ${opts.support.email}.`,
+    "",
+    "Communications, Catholic Archdiocese of Edmonton",
+  ].join("\n");
   return { subject, html, text };
 }
 
@@ -310,6 +361,7 @@ export function renderPasswordChanged(opts: {
     title: "Password changed",
     preheader: subject,
     body: `<p style="font-size:14px">Your password for CAEDM News Desk was just changed.</p>${detailRows(rows)}<p style="font-size:14px;font-weight:600">${esc(warning)}</p>${button(`${opts.appUrl}/account`, "Open my account")}`,
+    kind: "account",
     footerNote: "Security notices are always sent and can't be turned off.",
   });
   const text = [subject, "", ...rows.map(([k, v]) => `${k}: ${v}`), "", warning, "", `${opts.appUrl}/account`].join("\n");

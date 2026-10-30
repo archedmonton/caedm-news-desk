@@ -147,26 +147,31 @@ test("settings save and staff invitation flow with password sign-in", async ({ p
   await expect(page.getByLabel("Send time")).toHaveValue("07:45");
 
   // Domain restriction
-  await page.getByLabel("Email", { exact: true }).fill("someone@example.com");
+  await page.getByLabel("Full name").fill("New Staff");
+  await page.getByLabel("Work email").fill("someone@example.com");
   await page.getByRole("button", { name: "Send invitation" }).click();
   await expect(page.getByText(/Only @caedm.ca addresses can be invited/)).toBeVisible();
 
-  await page.getByLabel("Email", { exact: true }).fill("new.staff@caedm.ca");
+  await page.getByLabel("Work email").fill("new.staff@caedm.ca");
   await page.getByRole("button", { name: "Send invitation" }).click();
-  await expect(page.getByText(/Invitation created for new.staff@caedm.ca/)).toBeVisible();
+  await expect(page.getByText(/Invitation sent to New Staff \(new.staff@caedm.ca\)/)).toBeVisible();
 
   await page.goto("/outbox?kind=invite");
   await page.getByTestId("outbox-row").first().getByRole("link").click();
-  const href = await page.frameLocator("iframe").getByRole("link", { name: "Accept invitation" }).getAttribute("href");
+  const email = page.frameLocator("iframe");
+  await expect(email.getByText("Dear New Staff,")).toBeVisible();
+  await expect(email.getByText(/Member: Read and review news/)).toBeVisible();
+  const href = await email.getByRole("link", { name: "Accept invitation and create password" }).getAttribute("href");
   expect(href).toMatch(/\/invite\//);
 
   await context.clearCookies();
   await page.goto(new URL(href!).pathname);
   await page.waitForLoadState("networkidle");
-  await page.getByLabel("Your name").fill("New Staff");
-  await page.getByLabel("Password", { exact: true }).fill("correct horse battery");
+  await expect(page.getByRole("heading", { name: "Welcome, New" })).toBeVisible();
+  await expect(page.getByLabel("Your name")).toHaveValue("New Staff");
+  await page.getByLabel("Create a password").fill("correct horse battery");
   await page.getByLabel("Confirm password").fill("correct horse battery");
-  await page.getByRole("button", { name: "Create account" }).click();
+  await page.getByRole("button", { name: "Accept invitation and sign in" }).click();
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
   // Invitation is single-use.
@@ -184,7 +189,7 @@ test("settings save and staff invitation flow with password sign-in", async ({ p
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 });
 
-test("members can review but not manage; viewers are read-only", async ({ page }) => {
+test("members can review but not manage", async ({ page }) => {
   await devSignIn(page, "Dev Member");
   await page.goto("/settings");
   await expect(page.getByText("Only administrators can change settings.")).toBeVisible();
@@ -202,17 +207,6 @@ test("members can review but not manage; viewers are read-only", async ({ page }
   await expect(page.getByRole("heading", { name: "Workflow" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Change priority" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Sign out" }).first().click();
-  await devSignIn(page, "Dev Viewer");
-  await page.goto("/news?q=Misericordia");
-  const row = page.getByTestId("story-row").first();
-  await expect(row.getByRole("link", { name: /Open original source/ })).toBeVisible();
-  await expect(row.getByRole("button")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Submit a link" })).toHaveCount(0);
-  await row.getByRole("heading").getByRole("link").click();
-  await expect(page.getByRole("heading", { name: "Why this priority" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Workflow" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /Assign follow-up|Add note/ })).toHaveCount(0);
 });
 
 test("personal brief: choose a time, send one now, and find help beside each feature", async ({ page }) => {

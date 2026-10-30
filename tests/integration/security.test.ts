@@ -117,24 +117,24 @@ describe("authentication & authorization", () => {
     expect(await db.select().from(auditLogs).where(eq(auditLogs.action, "auth.login_failed"))).toHaveLength(5);
   });
 
-  it("applies the four-role permission matrix", () => {
+  it("applies the three-role permission matrix", () => {
     const matrix = {
-      read_news: [true, true, true, true],
-      manage_own_account: [true, true, true, true],
-      request_feature: [true, true, true, true],
-      review_news: [true, true, true, false],
-      manage_follow_ups: [true, true, true, false],
-      submit_links: [true, true, true, false],
-      change_priority: [true, true, false, false],
-      check_sources: [true, true, false, false],
-      send_test_notifications: [true, true, false, false],
-      manage_sources: [true, false, false, false],
-      manage_staff: [true, false, false, false],
-      manage_settings: [true, false, false, false],
+      read_news: [true, true, true],
+      manage_own_account: [true, true, true],
+      request_feature: [true, true, true],
+      review_news: [true, true, true],
+      manage_follow_ups: [true, true, true],
+      submit_links: [true, true, true],
+      change_priority: [true, true, false],
+      check_sources: [true, true, false],
+      send_test_notifications: [true, true, false],
+      manage_sources: [true, false, false],
+      manage_staff: [true, false, false],
+      manage_settings: [true, false, false],
     } as const;
     for (const [perm, expected] of Object.entries(matrix)) {
       expect(
-        (["admin", "manager", "member", "viewer"] as const).map((r) => can(r, perm as keyof typeof matrix)),
+        (["admin", "manager", "member"] as const).map((r) => can(r, perm as keyof typeof matrix)),
         perm,
       ).toEqual(expected);
     }

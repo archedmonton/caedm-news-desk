@@ -67,7 +67,29 @@ are blocked on IT approval, as intended.
    data.
 5. Enable the CAEDM feed, then verify and activate further expansion sources (see `docs/SOURCES.md`).
 
-## Change request 2026-10-30: personal briefs, Send now, user guide and help icons (not yet pushed)
+## Change request 2026-10-30 (2): three roles, promote/delete staff, personal invitations (✅ pushed)
+
+- **Roles:** Viewer removed; Administrator, Manager and Member remain. Migration `0002_remove_viewer_role` is
+  data-only and turns existing viewers into members.
+- **Promote and demote:** administrators can promote anyone (including to Administrator) and demote other
+  administrators, but can never change their own role. Changes are audited with the old and new role.
+- **Delete account:** Settings → Staff access → **Delete** (or **Cancel invite**), with a second click to confirm.
+  - It is never available for yourself or the developer account.
+  - Follow-ups become unassigned; notes, priority history and audit entries are kept, and audit entries keep the
+    person's email.
+  - Open invitation links are revoked, and the address can be invited again.
+- **Invitations:**
+  - The form now asks for the person's full name.
+  - The email is CAEDM-branded, with the logo, a greeting by name, their role and what it allows, step-by-step
+    instructions, an **Accept invitation and create password** button, a fallback link, the expiry and a support
+    contact.
+  - The sign-up page greets them by name, pre-fills it and shows their role.
+  - Approved access requests use the requester's name.
+- **All emails** now show the CAEDM logo above the header. Account emails (invitations, security notices) drop the
+  news-attribution footer.
+- **Verified:** 107 Vitest tests (4 new) and 24 Playwright tests (1 new) pass; typecheck and lint are clean.
+
+## Change request 2026-10-30: personal briefs, Send now, user guide and help icons (✅ pushed 00f0fa5)
 
 - **Personal briefs.** In My account → My news brief, each person chooses:
   - a time (every half hour, 5:00 am to 9:00 pm, or the team time);

@@ -6,7 +6,7 @@ const now = sql`(floor(extract(epoch from clock_timestamp()) * 1000))::bigint`;
 const ts = (name: string) => bigint(name, { mode: "number" });
 
 /** Highest to lowest. */
-export const ROLES = ["admin", "manager", "member", "viewer"] as const;
+export const ROLES = ["admin", "manager", "member"] as const;
 export type Role = (typeof ROLES)[number];
 
 export const PRIORITIES = ["P0", "P1", "P2", "P3"] as const;

@@ -2,8 +2,8 @@ import { first } from "@/lib/db/client";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { hashPassword } from "@/lib/auth/password";
-import { authenticate, changePassword, createInvitation, setUserRole, setUserStatus, updateOwnAccount } from "@/lib/auth/users";
-import { accessRequests, auditLogs, featureRequests, invitations, notifications, sessions, stories, users } from "@/lib/db/schema";
+import { authenticate, changePassword, createInvitation, deleteUser, setUserRole, setUserStatus, updateOwnAccount } from "@/lib/auth/users";
+import { accessRequests, auditLogs, featureRequests, followUpNotes, followUps, invitations, notifications, sessions, stories, users } from "@/lib/db/schema";
 import { ensureDeveloperAdmin } from "@/lib/db/seed";
 import { upsertStory } from "@/lib/ingest/collector";
 import { processAlerts } from "@/lib/notify/alerts";
@@ -38,18 +38,96 @@ describe("developer administrator", () => {
     const dev = (await first(db.select().from(users).where(eq(users.email, "ruban.peppin@caedm.ca"))))!;
     expect(dev).toMatchObject({ role: "admin", isDeveloper: true, name: "Ruban Peppin" });
     const other = await addUser(db, "other.admin@caedm.ca", { role: "admin" });
-    await expect(setUserRole(dev.id, "viewer", other.id, db)).rejects.toThrow(/protected/);
+    await expect(setUserRole(dev.id, "member", other.id, db)).rejects.toThrow(/protected/);
+    await expect(deleteUser(dev.id, other.id, db)).rejects.toThrow(/protected/);
     await expect(setUserStatus(dev.id, "disabled", other.id, db)).rejects.toThrow(/protected/);
   });
 
   it("re-invitations of the developer always keep the admin role", async () => {
     await db.insert(users).values({ email: "ruban.peppin@caedm.ca", role: "admin", status: "invited", isDeveloper: true });
-    await createInvitation({ email: "ruban.peppin@caedm.ca", role: "viewer", invitedBy: null }, db, NOW);
+    await createInvitation({ email: "ruban.peppin@caedm.ca", role: "member", invitedBy: null }, db, NOW);
     expect((await first(db.select().from(invitations)))!.role).toBe("admin");
   });
 
   it("new users default to the member role", async () => {
     expect((await db.insert(users).values({ email: "x@caedm.ca" }).returning())[0].role).toBe("member");
+  });
+});
+
+describe("roles, invitations and deleting accounts", () => {
+  let db: Awaited<ReturnType<typeof testDb>>;
+  beforeEach(async () => {
+    db = await testDb();
+  });
+
+  it("lets an administrator promote others to administrator and demote other administrators, but never change themselves", async () => {
+    const me = await addUser(db, "me@caedm.ca", { role: "admin" });
+    const staff = await addUser(db, "staff@caedm.ca");
+    await setUserRole(staff.id, "admin", me.id, db);
+    expect((await first(db.select().from(users).where(eq(users.id, staff.id))))!.role).toBe("admin");
+    await setUserRole(staff.id, "manager", me.id, db);
+    expect((await first(db.select().from(users).where(eq(users.id, staff.id))))!.role).toBe("manager");
+    await expect(setUserRole(me.id, "manager", me.id, db)).rejects.toThrow(/your own role/);
+    await expect(setUserRole(me.id, "admin", me.id, db)).rejects.toThrow(/your own role/);
+    const log = await first(db.select().from(auditLogs).where(eq(auditLogs.action, "user.role_changed")));
+    expect(log?.details).toMatchObject({ from: "member", role: "admin" });
+  });
+
+  it("personalises the invitation with the person's name and role, and pre-fills the account", async () => {
+    await createInvitation({ email: "maria.s@caedm.ca", name: " Maria Santos ", role: "manager", invitedBy: { id: 1, name: "Ruban Peppin" } }, db, NOW);
+    expect(await first(db.select().from(users).where(eq(users.email, "maria.s@caedm.ca")))).toMatchObject({ name: "Maria Santos", status: "invited" });
+    const n = (await first(db.select().from(notifications).where(eq(notifications.kind, "invite"))))!;
+    expect(n.subject).toBe("Your invitation to join CAEDM News Desk");
+    expect(n.html).toContain("Dear Maria Santos,");
+    expect(n.html).toContain("Accept invitation and create password");
+    expect(n.html).toContain("Manager: ");
+    expect(n.html).toContain("caedm-logo.png");
+    expect(n.html).not.toContain("publishers' own descriptions");
+    expect(n.text).toContain("Ruban Peppin has invited you");
+  });
+
+  it("deletes an account but keeps their work, unassigns their follow-ups and keeps the audit trail readable", async () => {
+    const admin = await addUser(db, "boss@caedm.ca", { role: "admin" });
+    const gone = await addUser(db, "leaver@caedm.ca", { name: "Leaver" });
+    await db.insert(sessions).values({ tokenHash: "s1", userId: gone.id, expiresAt: NOW + 3600_000, lastSeenAt: NOW, createdAt: NOW });
+    const storyId = (await upsertStory(
+      db,
+      await sourceBySlug(db, "caedm"),
+      {
+        title: "Parish news",
+        url: "https://www.caedm.ca/news/parish",
+        publishedAt: NOW,
+        updatedAt: null,
+        description: null,
+        descriptionSource: "none",
+        categories: [],
+      },
+      { now: NOW, rules: DEFAULT_PRIORITY_RULES, baseline: false },
+    ))!;
+    const [fu] = await db.insert(followUps).values({ storyId, assigneeId: gone.id, createdBy: gone.id }).returning();
+    await db.insert(followUpNotes).values({ followUpId: fu.id, authorId: gone.id, body: "Called the parish." });
+    await db.insert(auditLogs).values({ userId: gone.id, action: "story.reviewed", entityType: "story" });
+
+    await expect(deleteUser(admin.id, admin.id, db)).rejects.toThrow(/your own account/);
+    await deleteUser(gone.id, admin.id, db, NOW);
+
+    expect(await first(db.select().from(users).where(eq(users.id, gone.id)))).toBeUndefined();
+    expect(await db.select().from(sessions)).toHaveLength(0);
+    expect(await first(db.select().from(followUps))).toMatchObject({ assigneeId: null, createdBy: null });
+    expect(await first(db.select().from(followUpNotes))).toMatchObject({ authorId: null, body: "Called the parish." });
+    expect((await first(db.select().from(auditLogs).where(eq(auditLogs.action, "story.reviewed"))))?.details).toEqual({ formerUser: "leaver@caedm.ca" });
+    expect((await first(db.select().from(auditLogs).where(eq(auditLogs.action, "user.deleted"))))?.details).toMatchObject({ email: "leaver@caedm.ca" });
+
+    // The address can be invited again.
+    await createInvitation({ email: "leaver@caedm.ca", name: "Leaver", role: "member", invitedBy: null }, db, NOW);
+    expect(await first(db.select().from(users).where(eq(users.email, "leaver@caedm.ca")))).toMatchObject({ status: "invited" });
+  });
+
+  it("cancelling an invitation revokes its link", async () => {
+    const admin = await addUser(db, "boss@caedm.ca", { role: "admin" });
+    const r = await createInvitation({ email: "pending@caedm.ca", name: "Pending", role: "member", invitedBy: null }, db, NOW);
+    await deleteUser(r.userId, admin.id, db, NOW);
+    expect((await first(db.select().from(invitations)))!.revokedAt).toBe(NOW);
   });
 });
 
@@ -141,7 +219,7 @@ describe("access requests", () => {
 
   it("approval sends an invitation with the chosen role; decline closes it", async () => {
     const admin = await addUser(db, "boss@caedm.ca", { role: "admin" });
-    const a = await createAccessRequest({ name: "A", email: "a@caedm.ca", requestedRole: "viewer" }, db, NOW);
+    const a = await createAccessRequest({ name: "A", email: "a@caedm.ca", requestedRole: "member" }, db, NOW);
     const b = await createAccessRequest({ name: "B", email: "b@caedm.ca" }, db, NOW);
     await approveAccessRequest(a.requestId!, "manager", { id: admin.id, name: "Boss" }, db, NOW);
     await declineAccessRequest(b.requestId!, admin.id, db, NOW);

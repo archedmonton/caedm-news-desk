@@ -35,7 +35,6 @@ async function main() {
         { email: `dev.admin@${e.ALLOWED_EMAIL_DOMAIN}`, name: "Dev Administrator", role: "admin" as const },
         { email: `dev.manager@${e.ALLOWED_EMAIL_DOMAIN}`, name: "Dev Manager", role: "manager" as const },
         { email: `dev.member@${e.ALLOWED_EMAIL_DOMAIN}`, name: "Dev Member", role: "member" as const },
-        { email: `dev.viewer@${e.ALLOWED_EMAIL_DOMAIN}`, name: "Dev Viewer", role: "viewer" as const },
       ];
       for (const u of devUsers) {
         const exists = (await db.select({ id: users.id }).from(users).where(eq(users.email, u.email))).length;

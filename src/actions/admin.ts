@@ -7,7 +7,7 @@ import type { ActionState } from "@/components/forms";
 import { audit } from "@/lib/audit";
 import { productionAccess } from "@/lib/auth/access";
 import { requireUser } from "@/lib/auth/session";
-import { createInvitation, setUserRole, setUserStatus } from "@/lib/auth/users";
+import { createInvitation, deleteUser, setUserRole, setUserStatus } from "@/lib/auth/users";
 import { first, getDb } from "@/lib/db/client";
 import { ROLES, sources } from "@/lib/db/schema";
 import { checkSource, reclassifyAll } from "@/lib/ingest/collector";
@@ -143,10 +143,16 @@ export async function inviteStaffAction(_p: ActionState, fd: FormData): Promise<
       .string()
       .email()
       .parse(String(fd.get("email") ?? "").trim());
+    const name = z
+      .string()
+      .trim()
+      .min(1, "Enter the person's name.")
+      .max(100)
+      .parse(String(fd.get("name") ?? ""));
     const role = z.enum(ROLES).parse(fd.get("role"));
-    await createInvitation({ email, role, invitedBy: { id: user.id, name: user.name || user.email } });
+    await createInvitation({ email, name, role, invitedBy: { id: user.id, name: user.name || user.email } });
     revalidatePath("/settings");
-    return { ok: true, message: `Invitation created for ${email}. The email is in the outbox (simulated unless live delivery is configured).` };
+    return { ok: true, message: `Invitation sent to ${name} (${email}). It's also in Email outbox → Invitations.` };
   } catch (e) {
     return fail(e);
   }
@@ -162,4 +168,10 @@ export async function setStaffRoleAction(fd: FormData) {
   const user = await requireUser("manage_staff");
   await setUserRole(id.parse(fd.get("userId")), z.enum(ROLES).parse(fd.get("role")), user.id);
   revalidatePath("/settings");
+}
+
+export async function deleteStaffAction(fd: FormData) {
+  const user = await requireUser("manage_staff");
+  await deleteUser(id.parse(fd.get("userId")), user.id);
+  revalidatePath("/", "layout");
 }

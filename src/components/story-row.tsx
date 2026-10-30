@@ -20,7 +20,7 @@ function StatusButton({ storyId, status, label, icon }: { storyId: number; statu
   );
 }
 
-/** `canReview` controls workflow buttons; viewers still get the "Original" link. */
+/** `canReview` controls workflow buttons; read-only views still get the "Original" link. */
 export function StoryRow({ s, actions = true, canReview = false }: { s: StoryListItem; actions?: boolean; canReview?: boolean }) {
   const when = s.publishedAt ?? s.firstDetectedAt;
   return (

@@ -4,12 +4,13 @@ import {
   reclassifyAction,
   savePriorityRulesAction,
   saveSettingsAction,
+  deleteStaffAction,
   setStaffRoleAction,
   setStaffStatusAction,
 } from "@/actions/admin";
 import { setFeatureRequestStatusAction } from "@/actions/requests";
 import { AccessRequestsCard } from "@/components/access-requests";
-import { ActionForm, SubmitButton } from "@/components/forms";
+import { ActionForm, ConfirmSubmit, SubmitButton } from "@/components/forms";
 import { PageHeader } from "@/components/page-header";
 import { Badge, Card, CardHeader, Checkbox, Field, Input, Select, Textarea } from "@/components/ui/primitives";
 import { productionAccess } from "@/lib/auth/access";
@@ -264,9 +265,9 @@ export default async function SettingsPage() {
             <Card>
               <CardHeader
                 title="Staff access"
-                description={`Invitation only: administrators add people. Only @${env().ALLOWED_EMAIL_DOMAIN} work emails can be invited.`}
+                description={`Invitation only: administrators add people. Only @${env().ALLOWED_EMAIL_DOMAIN} work emails can be invited. Administrators can promote anyone, including to Administrator, but can't change or delete their own account here.`}
               />
-              <dl className="grid gap-x-6 gap-y-2 border-b border-line px-5 py-4 text-xs sm:grid-cols-2">
+              <dl className="grid gap-x-6 gap-y-2 border-b border-line px-5 py-4 text-xs sm:grid-cols-3">
                 {ROLES.map((r) => (
                   <div key={r}>
                     <dt className="font-semibold text-ink">{ROLE_LABELS[r]}</dt>
@@ -279,8 +280,11 @@ export default async function SettingsPage() {
                 resetOnSuccess
                 className="flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-end"
               >
-                <Field label="Email" htmlFor="invite-email" className="flex-1">
-                  <Input id="invite-email" name="email" type="email" required placeholder={`name@${env().ALLOWED_EMAIL_DOMAIN}`} />
+                <Field label="Full name" htmlFor="invite-name" className="flex-1">
+                  <Input id="invite-name" name="name" required maxLength={100} placeholder="e.g. Maria Santos" autoComplete="off" />
+                </Field>
+                <Field label="Work email" htmlFor="invite-email" className="flex-1">
+                  <Input id="invite-email" name="email" type="email" required placeholder={`name@${env().ALLOWED_EMAIL_DOMAIN}`} autoComplete="off" />
                 </Field>
                 <Field label="Role" htmlFor="invite-role">
                   <Select id="invite-role" name="role" defaultValue="member">
@@ -312,6 +316,7 @@ export default async function SettingsPage() {
                         <td className="px-5 py-2.5">
                           <div className="font-medium text-ink">
                             {u.name || "—"}
+                            {u.id === user.id ? <span className="ml-1 text-xs font-normal text-muted">(you)</span> : null}
                             {u.isDeveloper ? <Badge className="ml-2 border-gold-300 bg-gold-100 text-gold-800">Developer</Badge> : null}
                           </div>
                           <div className="text-xs text-muted">{u.email}</div>
@@ -342,14 +347,26 @@ export default async function SettingsPage() {
                         <td className="px-3 py-2.5 capitalize">{u.status}</td>
                         <td className="px-3 py-2.5 text-muted">{formatDateTime(u.lastLoginAt)}</td>
                         <td className="px-5 py-2.5 text-right">
-                          {u.id !== user.id && u.status !== "invited" && !u.isDeveloper ? (
-                            <form action={setStaffStatusAction}>
-                              <input type="hidden" name="userId" value={u.id} />
-                              <input type="hidden" name="status" value={u.status === "disabled" ? "active" : "disabled"} />
-                              <SubmitButton variant="ghost" size="xs">
-                                {u.status === "disabled" ? "Re-enable" : "Disable"}
-                              </SubmitButton>
-                            </form>
+                          {u.id !== user.id && !u.isDeveloper ? (
+                            <div className="flex items-center justify-end gap-1">
+                              {u.status !== "invited" ? (
+                                <form action={setStaffStatusAction}>
+                                  <input type="hidden" name="userId" value={u.id} />
+                                  <input type="hidden" name="status" value={u.status === "disabled" ? "active" : "disabled"} />
+                                  <SubmitButton variant="ghost" size="xs">
+                                    {u.status === "disabled" ? "Re-enable" : "Disable"}
+                                  </SubmitButton>
+                                </form>
+                              ) : null}
+                              <form action={deleteStaffAction} aria-label={`Delete ${u.email}`}>
+                                <input type="hidden" name="userId" value={u.id} />
+                                <ConfirmSubmit
+                                  label={u.status === "invited" ? "Cancel invite" : "Delete"}
+                                  confirmLabel={u.status === "invited" ? "Confirm cancel" : "Confirm delete"}
+                                  pendingText="Deleting…"
+                                />
+                              </form>
+                            </div>
                           ) : null}
                         </td>
                       </tr>
@@ -357,6 +374,11 @@ export default async function SettingsPage() {
                   </tbody>
                 </table>
               </div>
+              <p className="border-t border-line px-5 py-3 text-xs text-muted">
+                <strong className="text-ink">Disable</strong> pauses someone&apos;s access and can be undone. <strong className="text-ink">Delete</strong>{" "}
+                removes the account permanently: their follow-ups become unassigned, their notes and history are kept, and the address can be invited
+                again later.
+              </p>
             </Card>
 
             {requests.length ? <AccessRequestsCard rows={requests} title="Access requests (history)" /> : null}
@@ -407,7 +429,7 @@ export default async function SettingsPage() {
                       <span className="font-medium text-ink">{a.action}</span>{" "}
                       <span className="text-muted">
                         {a.entityType}
-                        {a.entityId ? ` #${a.entityId}` : ""} by {by || byEmail || "system"}
+                        {a.entityId ? ` #${a.entityId}` : ""} by {by || byEmail || (a.details?.formerUser as string | undefined) || "system"}
                       </span>
                     </span>
                     <span className="text-xs text-subtle">{formatDateTime(a.createdAt)}</span>

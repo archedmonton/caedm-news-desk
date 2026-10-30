@@ -72,7 +72,7 @@ tests/unit, tests/e2e              Vitest and Playwright
 All timestamps are stored as UTC epoch milliseconds (`integer`), and converted to Edmonton time only for
 display and scheduling.
 
-- `users`: email (unique), name, role (`admin` | `manager` | `member` | `viewer`), status (`invited` | `active` |
+- `users`: email (unique), name, role (`admin` | `manager` | `member`), status (`invited` | `active` |
   `disabled`), password hash, lockout counters, `is_developer`, and personal notification preferences
   (`notify_digest`, `notify_alerts` = all/p0/none, `notify_assignments`, `notify_access_requests`), and the
   personal brief schedule (`digest_time` HH:MM or null for the team time, `digest_days` = daily/weekdays,
@@ -253,8 +253,16 @@ overwrites them.
 |---|---|
 | Administrator | Everything: staff (only admins add people), sources, settings, system health |
 | Manager | Member rights plus priority overrides, brief/alert tools, on-demand source checks |
-| Member | Review stories, follow-ups and notes, submit links |
-| Viewer | Read-only |
+| Member | Read and review stories, follow-ups and notes, submit links |
+
+The Viewer role was retired on 2026-10-30 (migration `0002`, data-only: viewers became members).
+
+- **Role changes.** Admins can promote anyone (including to admin) and demote other admins, but never change their
+  own role, so an admin always remains.
+- **Deleting accounts.** Admin only, never yourself or the developer, two-click confirm. `deleteUser` unlinks the
+  person's foreign keys (follow-ups become unassigned; notes, priority history and audit rows are kept), stamps
+  `formerUser: <email>` into their audit rows, revokes open invitations and removes the row. Sessions cascade.
+- **Invitations** carry the invitee's name: it personalises the branded email and pre-fills the sign-up page.
 
 - **Developer administrator.** `DEVELOPER_EMAIL` (default `ruban.peppin@caedm.ca`) is seeded as a protected
   admin with `is_developer=1`. Other admins can't demote or disable it.

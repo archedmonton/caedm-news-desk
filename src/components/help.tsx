@@ -215,16 +215,14 @@ const CONTEXT: Record<string, { heading: string; sections: Section[] }> = {
         body: (
           <ul className="list-disc space-y-1 pl-5">
             <li>
-              <strong>Administrator</strong>: everything, including staff, sources and settings. Only administrators can add people.
+              <strong>Administrator</strong>: everything, including staff, roles, sources and settings. Only administrators can add, promote or
+              delete people, and no one can change or delete their own account.
             </li>
             <li>
               <strong>Manager</strong>: member rights plus priority changes, brief/alert tools and source checks.
             </li>
             <li>
-              <strong>Member</strong>: review stories, follow-ups, notes, submit links.
-            </li>
-            <li>
-              <strong>Viewer</strong>: read-only.
+              <strong>Member</strong>: read and review stories, follow-ups, notes, submit links.
             </li>
           </ul>
         ),

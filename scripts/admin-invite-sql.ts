@@ -2,6 +2,7 @@ import "./_bootstrap";
 import { isAllowedEmail } from "../src/lib/auth/access";
 import { randomToken } from "../src/lib/auth/password";
 import { env } from "../src/lib/env";
+import { ROLES } from "../src/lib/db/schema";
 import { sha256 } from "../src/lib/ingest/url";
 
 // Bootstrap invite for networks that block Postgres ports (the CAEDM office blocks 5432/6543).
@@ -9,8 +10,8 @@ import { sha256 } from "../src/lib/ingest/url";
 // the token itself stays in the printed link. Mirrors createInvitation, without sending an email.
 const [rawEmail, role = "admin"] = process.argv.slice(2);
 const email = rawEmail?.trim().toLowerCase();
-if (!email || !["admin", "manager", "member", "viewer"].includes(role)) {
-  console.error("Usage: npm run admin:invite:sql -- name@caedm.ca [admin|manager|member|viewer]");
+if (!email || !(ROLES as readonly string[]).includes(role)) {
+  console.error("Usage: npm run admin:invite:sql -- name@caedm.ca [admin|manager|member]");
   process.exit(1);
 }
 if (!isAllowedEmail(email)) {

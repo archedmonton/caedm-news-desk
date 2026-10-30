@@ -34,7 +34,7 @@ test("access request reaches the administrator's dashboard and approval sends an
   await page.getByLabel("Full name").fill("Pat Newcomer");
   await page.locator("#ra-email").fill("pat.newcomer@caedm.ca");
   await page.getByLabel("Department or position").fill("Office of Catholic Education");
-  await page.getByLabel("Access needed").selectOption("viewer");
+  await expect(page.getByLabel("Access needed").locator("option")).toHaveText(["Member", "Manager"]);
   await page.getByLabel(/Why do you need access/).fill("To follow education news.");
   await page.getByRole("button", { name: "Send request" }).click();
   await expect(page.getByText(/Your request has been sent to the News Desk administrators/)).toBeVisible();
@@ -108,19 +108,19 @@ test("an invited person sets a password, changes it, and signs in with the new o
   const email = "casey.password@caedm.ca";
   await devSignIn(page, "Dev Administrator");
   await page.goto("/settings");
+  await page.locator("#invite-name").fill("Casey Password");
   await page.locator("#invite-email").fill(email);
   await page.getByRole("button", { name: "Send invitation" }).click();
-  await expect(page.getByText(`Invitation created for ${email}`)).toBeVisible();
+  await expect(page.getByText(`Invitation sent to Casey Password (${email})`)).toBeVisible();
 
   await page.goto("/outbox?kind=invite");
   await page.getByTestId("outbox-row").filter({ hasText: email }).first().getByRole("link").first().click();
-  const href = await page.frameLocator("iframe").getByRole("link", { name: "Accept invitation" }).getAttribute("href");
+  const href = await page.frameLocator("iframe").getByRole("link", { name: "Accept invitation and create password" }).getAttribute("href");
   await page.context().clearCookies();
   await page.goto(new URL(href!).pathname);
-  await page.getByLabel("Your name").fill("Casey Password");
-  await page.getByLabel("Password", { exact: true }).fill("first password 123");
+  await page.getByLabel("Create a password").fill("first password 123");
   await page.getByLabel("Confirm password").fill("first password 123");
-  await page.getByRole("button", { name: "Create account" }).click();
+  await page.getByRole("button", { name: "Accept invitation and sign in" }).click();
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
   await page.goto("/account");
@@ -150,4 +150,32 @@ test("an invited person sets a password, changes it, and signs in with the new o
   await page.locator("#password").fill("second password 456");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+});
+
+test("an administrator can promote someone to administrator, never change themselves, and delete an account", async ({ page }) => {
+  const email = "drew.removed@caedm.ca";
+  await devSignIn(page, "Dev Administrator");
+  await page.goto("/settings");
+  await page.locator("#invite-name").fill("Drew Removed");
+  await page.locator("#invite-email").fill(email);
+  await page.getByRole("button", { name: "Send invitation" }).click();
+  await expect(page.getByText(`Invitation sent to Drew Removed (${email})`)).toBeVisible();
+
+  await page.reload();
+  const me = page.getByRole("row").filter({ hasText: "dev.admin@caedm.ca" });
+  await expect(me.getByText("(you)")).toBeVisible();
+  await expect(me.getByRole("combobox")).toBeDisabled();
+  await expect(me.getByRole("button", { name: "Delete" })).toHaveCount(0);
+
+  const row = page.getByRole("row").filter({ hasText: email });
+  await expect(row.getByRole("combobox").locator("option")).toHaveText(["Administrator", "Manager", "Member"]);
+  await row.getByRole("combobox").selectOption("admin");
+  await row.getByRole("button", { name: "Save" }).click();
+  await page.reload();
+  await expect(page.getByRole("row").filter({ hasText: email }).getByRole("combobox")).toHaveValue("admin");
+
+  await page.getByRole("row").filter({ hasText: email }).getByRole("button", { name: "Cancel invite" }).click();
+  await page.getByRole("row").filter({ hasText: email }).getByRole("button", { name: "Confirm cancel" }).click();
+  await expect(page.getByRole("row").filter({ hasText: email })).toHaveCount(0);
+  await expect(page.getByText(/user\.deleted/).first()).toBeVisible();
 });

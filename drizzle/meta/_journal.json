@@ -15,6 +15,13 @@
       "when": 1793377944487,
       "tag": "0001_personal_briefs",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793388892446,
+      "tag": "0002_remove_viewer_role",
+      "breakpoints": true
     }
   ]
 }

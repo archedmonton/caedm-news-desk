@@ -163,8 +163,7 @@ priorities.
 
 | Role | Can |
 |---|---|
-| **Viewer** | Read news, follow-ups and sources; manage their own account |
-| **Member** | Everything a viewer can, plus review stories, manage follow-ups and notes, submit links |
+| **Member** | Read and review news, manage follow-ups and notes, submit links; manage their own account |
 | **Manager** | Everything a member can, plus change priorities, run brief and alert tools, check sources on demand |
 | **Administrator** | Everything, including staff, sources and settings |
 
@@ -191,10 +190,27 @@ Everyone can set up their own personal brief and use **Send me a brief now**.
 
 ## For administrators
 
-**Adding staff.** In **Settings → Staff access**, enter a colleague's @caedm.ca email, choose their role and click
-**Send invitation**. They
-receive a one-time link, valid for 72 hours, to set their password. People can also request access from the
-sign-in page; you'll see their request on the Overview.
+**Adding staff.** In **Settings → Staff access**, enter a colleague's full name and @caedm.ca email, choose their
+role and click **Send invitation**.
+
+- They receive a personal, CAEDM-branded email addressed to them by name, with an **Accept invitation and create
+  password** button.
+- The link works once and is valid for 72 hours. It opens a page that greets them by name, where they confirm their
+  name and create a password of at least 12 characters. They are then signed in.
+- People can also request access from the sign-in page. You'll see their request on the Overview, and approving it
+  sends the same invitation.
+
+**Changing roles.** Choose a new role beside the person and click **Save**. Administrators can promote anyone,
+including to Administrator, and can demote other administrators. You can never change your own role, so there is
+always at least one administrator. Keep two administrators so someone can always let staff in.
+
+**Disabling or deleting an account.**
+
+- **Disable** pauses someone's access. It can be undone with **Re-enable**.
+- **Delete** removes the account permanently, after a second click to confirm. Their follow-ups become unassigned;
+  their notes and history are kept, and the audit log still shows their email. The address can be invited again.
+- For an invitation that hasn't been accepted, **Cancel invite** deletes it and its link stops working.
+- You can't delete your own account. The developer account is protected.
 
 **Adding a source.** In **Sources → Add source**:
 

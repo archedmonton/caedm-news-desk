@@ -79,3 +79,25 @@ export function ActionForm({
     </form>
   );
 }
+
+/** A destructive submit that asks for a second click, so an account can't be removed by a stray click. */
+export function ConfirmSubmit({ label, confirmLabel, pendingText }: { label: string; confirmLabel: string; pendingText?: string }) {
+  const [armed, setArmed] = React.useState(false);
+  if (!armed) {
+    return (
+      <Button type="button" variant="ghost" size="xs" className="text-p0 hover:text-p0" onClick={() => setArmed(true)}>
+        {label}
+      </Button>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1">
+      <SubmitButton variant="destructive" size="xs" pendingText={pendingText}>
+        {confirmLabel}
+      </SubmitButton>
+      <Button type="button" variant="ghost" size="xs" onClick={() => setArmed(false)}>
+        Cancel
+      </Button>
+    </span>
+  );
+}

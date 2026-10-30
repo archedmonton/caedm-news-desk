@@ -19,7 +19,7 @@ import { env } from "@/lib/env";
 export const metadata: Metadata = { title: "Sign in" };
 export const dynamic = "force-dynamic";
 
-const ROLE_ORDER = { admin: 0, manager: 1, member: 2, viewer: 3 } as const;
+const ROLE_ORDER = { admin: 0, manager: 1, member: 2 } as const;
 
 export default async function LoginPage() {
   if (await getCurrentUser()) redirect("/");
@@ -114,7 +114,7 @@ export default async function LoginPage() {
                   </Field>
                   <Field label="Access needed" htmlFor="ra-role">
                     <Select id="ra-role" name="requestedRole" defaultValue="member">
-                      {(["viewer", "member", "manager"] as const).map((r) => (
+                      {(["member", "manager"] as const).map((r) => (
                         <option key={r} value={r}>
                           {ROLE_LABELS[r]}
                         </option>

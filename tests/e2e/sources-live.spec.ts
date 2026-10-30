@@ -60,7 +60,7 @@ test("only administrators can manage sources", async ({ page }) => {
 
 test("signed-in users see live updates when new stories arrive", async ({ page, browser }) => {
   test.setTimeout(120_000);
-  await devSignIn(page, "Dev Viewer");
+  await devSignIn(page, "Dev Manager");
   const live = page.getByTestId("live-updates");
   await expect(live).toContainText(/Live · sources checked|Checking sources/);
 

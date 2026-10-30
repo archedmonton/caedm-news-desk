@@ -43,7 +43,7 @@ they're due.
 | `npm run collect [-- slug]` | Check all enabled sources now (or one, e.g. `vatican-news`) |
 | `npm run digest:preview` | Render the morning brief to `data/previews/*.html` (sends and records nothing) |
 | `npm run alerts:dry-run` | Show which stories would be alerted now and why others are held |
-| `npm run admin:invite -- name@caedm.ca [admin\|manager\|member\|viewer]` | Operator bootstrap of an invitation |
+| `npm run admin:invite -- name@caedm.ca [admin\|manager\|member]` | Operator bootstrap of an invitation |
 | `npm run worker` | Optional, for self-hosting only: refresh loop (Vercel uses Cron + live refresh instead) |
 | `npm run check` | Typecheck + lint + unit/integration tests (in-memory Postgres) |
 | `npm run test:e2e` | Playwright (desktop and mobile) on an isolated database and a local fixture website |
@@ -74,7 +74,7 @@ disabled but not deleted.
 
 - **Morning brief:** **Email outbox → Preview today's brief** (live render, records nothing) or **Save
   preview to outbox** (sends only to you).
-- **Alerts:** **Email outbox → Alert dry run**, or **Run alert check now** (managers and admins).
+- **Alerts:** **Email outbox → Alert dry run**, or **Run alert check now** ([admin|manager|member]s and admins).
 - **Access requests:** use **Request access** on the login page; admins see the request on the Overview.
 - **Live updates:** keep the dashboard open while a colleague submits a link; the banner appears within a
   minute.

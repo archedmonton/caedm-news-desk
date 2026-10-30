@@ -83,12 +83,12 @@ test("each account manages its own email notifications", async ({ page }) => {
   await page.getByRole("link", { name: "My account" }).first().click();
   await expect(page.getByRole("heading", { name: "My account" })).toBeVisible();
   await page.waitForLoadState("networkidle");
-  await page.getByLabel(/Morning News Brief/).check();
+  await page.getByRole("checkbox", { name: /My news brief/ }).check();
   await page.getByLabel("P0 Critical only").check();
   await page.getByRole("button", { name: "Save my settings" }).click();
   await expect(page.getByText("Your settings were saved.")).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel(/Morning News Brief/)).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /My news brief/ })).toBeChecked();
   await expect(page.getByLabel("P0 Critical only")).toBeChecked();
   await expect(page.getByLabel(/Access requests/)).toHaveCount(0); // administrators only
 });

@@ -142,6 +142,10 @@ export async function setUserRole(userId: number, role: Role, actorId: number, d
 
 export type NotificationPreferences = {
   notifyDigest: boolean;
+  /** "HH:MM" Edmonton, or null to follow the team brief's time. */
+  digestTime?: string | null;
+  digestDays?: "daily" | "weekdays";
+  digestScope?: "catholic" | "all";
   notifyAlerts: "all" | "p0" | "none";
   notifyAssignments: boolean;
   notifyAccessRequests: boolean;

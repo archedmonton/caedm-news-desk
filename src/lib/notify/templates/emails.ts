@@ -58,10 +58,15 @@ export function renderDigest(opts: {
   windowStart: number;
   appUrl: string;
   totalStories: number;
+  /** Set for a personal brief: addressed to one person, with only their follow-ups. */
+  personal?: { name: string; scope: "catholic" | "all"; scheduleLabel: string };
 }): RenderedEmail {
   const date = formatLongDate(opts.now);
-  const subject = `CAEDM Morning News Brief | ${date}`;
-  const intro = `<p style="font-size:14px;color:${COLORS.muted};margin:16px 0 4px">${opts.totalStories ? `${opts.totalStories} new ${opts.totalStories === 1 ? "story" : "stories"}` : "No new stories"} since ${esc(formatDateTime(opts.windowStart))} (Edmonton time).</p>`;
+  const p = opts.personal;
+  const subject = p ? `Your CAEDM News Brief | ${date}` : `CAEDM Morning News Brief | ${date}`;
+  const scopeNote = p ? (p.scope === "catholic" ? " from Catholic sources" : " from all monitored sources") : "";
+  const count = opts.totalStories ? `${opts.totalStories} new ${opts.totalStories === 1 ? "story" : "stories"}` : "No new stories";
+  const intro = `${p ? `<p style="font-size:15px;margin:16px 0 0">Hello ${esc(p.name)},</p>` : ""}<p style="font-size:14px;color:${COLORS.muted};margin:${p ? "6px" : "16px"} 0 4px">${count}${scopeNote} since ${esc(formatDateTime(opts.windowStart))} (Edmonton time).</p>`;
   const nonEmpty = opts.sections.filter((s) => s.stories.length);
   const sectionsHtml = nonEmpty.length
     ? nonEmpty
@@ -76,7 +81,7 @@ ${sec.more ? `<div style="font-size:12px;color:${COLORS.muted};margin-top:6px">+
         )
         .join("")
     : `<div style="margin:24px 0;padding:20px;border:1px dashed ${COLORS.border};border-radius:8px;text-align:center;color:${COLORS.muted};font-size:14px">No new stories from monitored sources since the last briefing.</div>`;
-  const fuHtml = `<h2 style="font-size:15px;text-transform:uppercase;letter-spacing:.05em;color:${COLORS.gold};margin:28px 0 4px">Outstanding Communications follow-ups</h2>
+  const fuHtml = `<h2 style="font-size:15px;text-transform:uppercase;letter-spacing:.05em;color:${COLORS.gold};margin:28px 0 4px">${p ? "Your follow-ups" : "Outstanding Communications follow-ups"}</h2>
 ${
   opts.followUps.length
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${opts.followUps
@@ -86,19 +91,29 @@ ${
 <div style="font-size:12px;color:${f.overdue ? COLORS.P0 : COLORS.muted}">${esc(f.assignee ?? "Unassigned")} · ${esc(f.status)} · ${f.dueAt ? `Due ${esc(formatDateTime(f.dueAt))}${f.overdue ? " (overdue)" : ""}` : "No due date"}</div></td></tr>`,
         )
         .join("")}</table>`
-    : `<div style="font-size:14px;color:${COLORS.muted}">No outstanding follow-ups.</div>`
+    : `<div style="font-size:14px;color:${COLORS.muted}">${p ? "Nothing is assigned to you." : "No outstanding follow-ups."}</div>`
 }`;
+  const settingsUrl = `${opts.appUrl}/account#brief`;
   const html = emailLayout({
-    title: `Morning News Brief — ${date}`,
-    preheader: opts.totalStories ? `${opts.totalStories} new stories for Communications review` : "No new stories today",
-    body: intro + sectionsHtml + fuHtml,
-    footerNote: `Scheduled daily briefing generated ${formatTime(opts.now)} America/Edmonton.`,
+    title: p ? `Your News Brief — ${date}` : `Morning News Brief — ${date}`,
+    preheader: opts.totalStories ? `${opts.totalStories} new stories${p ? scopeNote : " for Communications review"}` : "No new stories today",
+    body:
+      intro +
+      sectionsHtml +
+      fuHtml +
+      (p
+        ? `<p style="font-size:12px;color:${COLORS.muted};margin:24px 0 0"><a href="${safeHref(settingsUrl)}" style="color:${COLORS.accent}">Change the time or content of this brief, or turn it off</a></p>`
+        : ""),
+    footerNote: p
+      ? `Your personal brief (${p.scheduleLabel}, ${p.scope === "catholic" ? "Catholic news only" : "all monitored news"}), generated ${formatTime(opts.now)} America/Edmonton.`
+      : `Scheduled daily briefing generated ${formatTime(opts.now)} America/Edmonton.`,
   });
   const text = [
     subject,
     "",
+    ...(p ? [`Hello ${p.name},`, ""] : []),
     opts.totalStories
-      ? `${opts.totalStories} new stories since ${formatDateTime(opts.windowStart)}.`
+      ? `${opts.totalStories} new stories${scopeNote} since ${formatDateTime(opts.windowStart)}.`
       : "No new stories from monitored sources since the last briefing.",
     ...nonEmpty.flatMap((sec, i) => [
       "",
@@ -107,15 +122,16 @@ ${
       sec.more ? `  + ${sec.more} more in the News Feed` : "",
     ]),
     "",
-    "OUTSTANDING FOLLOW-UPS",
+    p ? "YOUR FOLLOW-UPS" : "OUTSTANDING FOLLOW-UPS",
     ...(opts.followUps.length
       ? opts.followUps.map(
           (f) =>
             `- ${f.title} — ${f.assignee ?? "Unassigned"}, ${f.status}${f.dueAt ? `, due ${formatDateTime(f.dueAt)}` : ""}${f.overdue ? " (OVERDUE)" : ""}`,
         )
-      : ["No outstanding follow-ups."]),
+      : [p ? "Nothing is assigned to you." : "No outstanding follow-ups."]),
     "",
     `CAEDM News Desk: ${opts.appUrl}`,
+    ...(p ? [`Change or turn off this brief: ${settingsUrl}`] : []),
   ].join("\n");
   return { subject, html, text };
 }

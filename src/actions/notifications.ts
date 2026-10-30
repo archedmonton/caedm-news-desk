@@ -7,9 +7,24 @@ import { audit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth/session";
 import { processAlerts } from "@/lib/notify/alerts";
 import { deliverNotification } from "@/lib/notify/deliver";
-import { createDigestPreviewNotification } from "@/lib/notify/digest";
+import { createDigestPreviewNotification, sendBriefNow } from "@/lib/notify/digest";
 
 const fail = (e: unknown): ActionState => ({ error: (e as Error).message });
+
+export async function sendBriefNowAction(_p: ActionState): Promise<ActionState> {
+  try {
+    const user = await requireUser("manage_own_account");
+    const r = await sendBriefNow(user.id);
+    await audit("notification.brief_sent_now", "notification", r.notificationId, user.id, { storyCount: r.storyCount });
+    revalidatePath("/outbox");
+    const stories = `${r.storyCount} ${r.storyCount === 1 ? "story" : "stories"}`;
+    if (r.status === "sent") return { ok: true, message: `Your brief (${stories}) was emailed to ${r.recipient}.` };
+    if (r.status === "simulated") return { ok: true, message: `Your brief (${stories}) was saved to the outbox. Email delivery is simulated, so nothing was sent.` };
+    return { error: `Your brief was saved but couldn't be emailed yet (${r.error ?? "delivery failed"}). It will be retried automatically.` };
+  } catch (e) {
+    return fail(e);
+  }
+}
 
 export async function saveDigestPreviewAction(_p: ActionState): Promise<ActionState> {
   try {

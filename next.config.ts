@@ -33,6 +33,11 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   // Lets the Playwright server build into its own directory alongside a running dev server.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // The in-app user guide imports docs/USER-GUIDE.md as text, so the docs and the app can't drift apart.
+  webpack(config) {
+    config.module.rules.push({ test: /\.md$/, type: "asset/source" });
+    return config;
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

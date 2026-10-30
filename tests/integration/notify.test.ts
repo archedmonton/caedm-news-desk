@@ -5,7 +5,7 @@ import { followUps, notifications, notificationStories, stories, users } from "@
 import { upsertStory } from "@/lib/ingest/collector";
 import { evaluateAlerts, processAlerts } from "@/lib/notify/alerts";
 import { deliverNotification, retryDeliveries } from "@/lib/notify/deliver";
-import { buildDigest, createDigestPreviewNotification, runScheduledDigest, sectionFor } from "@/lib/notify/digest";
+import { buildDigest, createDigestPreviewNotification, runPersonalBriefs, runScheduledDigest, sectionFor, sendBriefNow } from "@/lib/notify/digest";
 import { setTransportOverride } from "@/lib/notify/transport";
 import { DEFAULT_PRIORITY_RULES } from "@/lib/priority/rules";
 import { setSettings } from "@/lib/settings";
@@ -135,6 +135,120 @@ describe("morning digest", () => {
     const d = await buildDigest(db, now);
     expect(d.html).not.toContain("<script>alert(1)</script>");
     expect(d.html).toContain("&lt;script&gt;");
+  });
+});
+
+describe("personal briefs", () => {
+  let db: Awaited<ReturnType<typeof testDb>>;
+  beforeEach(async () => {
+    db = await testDb();
+  });
+  afterEach(() => setTransportOverride(null));
+
+  // 2026-10-28 is a Wednesday (MDT): 07:30 Edmonton = 13:30Z.
+  const person = async (extra: Partial<typeof users.$inferInsert> = {}) =>
+    (
+      await db
+        .insert(users)
+        .values({ email: "reader@caedm.ca", name: "Reader", status: "active", notifyDigest: true, digestTime: "07:30", ...extra })
+        .returning()
+    )[0];
+  const briefs = () => db.select().from(notifications).where(eq(notifications.kind, "brief"));
+
+  it("is sent once at the person's own time, to them only", async () => {
+    await person();
+    await addStory(db, "caedm", "Archdiocese announces Advent schedule", { now: at("2026-10-28T06:00:00Z") });
+    expect(await runPersonalBriefs(db, at("2026-10-28T13:29:00Z"))).toEqual({ sent: 0, empty: 0 });
+    expect(await runPersonalBriefs(db, at("2026-10-28T13:31:00Z"))).toEqual({ sent: 1, empty: 0 });
+    expect(await runPersonalBriefs(db, at("2026-10-28T13:46:00Z"))).toEqual({ sent: 0, empty: 0 });
+    const [b] = await briefs();
+    expect(b).toMatchObject({ recipient: "reader@caedm.ca", status: "simulated", subject: "Your CAEDM News Brief | October 28, 2026" });
+    expect(b.html).toContain("Hello Reader,");
+    expect(b.html).toContain("Archdiocese announces Advent schedule");
+    // The team brief still has its own story and its own recipient.
+    expect(await runScheduledDigest(db, at("2026-10-28T14:01:00Z"))).toMatchObject({ status: "created", storyCount: 1 });
+  });
+
+  it("follows the team time when no time is chosen", async () => {
+    await person({ digestTime: null });
+    await addStory(db, "caedm", "Archdiocese news", { now: at("2026-10-28T06:00:00Z") });
+    expect((await runPersonalBriefs(db, at("2026-10-28T13:59:00Z"))).sent).toBe(0);
+    expect((await runPersonalBriefs(db, at("2026-10-28T14:01:00Z"))).sent).toBe(1);
+  });
+
+  it("filters to Catholic sources unless the person chose all news", async () => {
+    const u = await person();
+    await addStory(db, "vatican-news", "Pope Leo addresses synod", { now: at("2026-10-28T06:00:00Z") });
+    await addStory(db, "alberta-news", "Alberta announces education funding", { now: at("2026-10-28T06:00:00Z") });
+    await runPersonalBriefs(db, at("2026-10-28T13:31:00Z"));
+    const [catholic] = await briefs();
+    expect(catholic.html).toContain("Pope Leo addresses synod");
+    expect(catholic.html).not.toContain("Alberta announces education funding");
+
+    await db.update(users).set({ digestScope: "all" }).where(eq(users.id, u.id));
+    await addStory(db, "alberta-news", "Alberta updates health policy", { now: at("2026-10-29T06:00:00Z") });
+    await runPersonalBriefs(db, at("2026-10-29T13:31:00Z"));
+    const all = (await briefs()).at(-1)!;
+    expect(all.html).toContain("Alberta updates health policy");
+    // Yesterday's stories were covered by yesterday's brief.
+    expect(all.html).not.toContain("Pope Leo addresses synod");
+  });
+
+  it("skips weekends for weekday briefs and records quiet days without emailing", async () => {
+    await person({ digestDays: "weekdays" });
+    // Saturday 2026-10-31: nothing at all.
+    expect(await runPersonalBriefs(db, at("2026-10-31T13:31:00Z"))).toEqual({ sent: 0, empty: 0 });
+    // Wednesday with nothing new: a skipped record, no email.
+    expect(await runPersonalBriefs(db, at("2026-10-28T13:31:00Z"))).toEqual({ sent: 0, empty: 1 });
+    const [quiet] = await briefs();
+    expect(quiet).toMatchObject({ status: "skipped", sentAt: null });
+    expect(await runPersonalBriefs(db, at("2026-10-28T13:45:00Z"))).toEqual({ sent: 0, empty: 0 });
+  });
+
+  it("isn't sent late when no refresh ran near the chosen time", async () => {
+    await person();
+    await addStory(db, "caedm", "Archdiocese news", { now: at("2026-10-28T06:00:00Z") });
+    expect(await runPersonalBriefs(db, at("2026-10-28T18:00:00Z"))).toEqual({ sent: 0, empty: 0 });
+  });
+
+  it("send-now emails the last day immediately, once a minute, without moving the schedule", async () => {
+    const u = await person();
+    await addStory(db, "caedm", "Archdiocese news", { now: at("2026-10-28T06:00:00Z") });
+    const now = at("2026-10-28T12:00:00Z");
+    expect(await sendBriefNow(u.id, db, now)).toMatchObject({ status: "simulated", storyCount: 1, recipient: "reader@caedm.ca" });
+    await expect(sendBriefNow(u.id, db, now + 5_000)).rejects.toThrow(/wait a minute/);
+    // The scheduled brief later the same morning still includes the story.
+    await runPersonalBriefs(db, at("2026-10-28T13:31:00Z"));
+    const scheduled = (await briefs()).find((b) => b.dedupeKey.startsWith("brief:"))!;
+    expect(scheduled.html).toContain("Archdiocese news");
+  });
+
+  it("reports a failed delivery and queues a retry", async () => {
+    const u = await person();
+    setTransportOverride({
+      name: "smtp",
+      send: async () => {
+        throw new Error("connect ETIMEDOUT");
+      },
+    });
+    const r = await sendBriefNow(u.id, db, at("2026-10-28T12:00:00Z"));
+    expect(r).toMatchObject({ status: "failed", error: "connect ETIMEDOUT" });
+  });
+
+  it("lists only the person's own follow-ups", async () => {
+    const u = await person();
+    const other = (await db.insert(users).values({ email: "other@caedm.ca", name: "Other", status: "active" }).returning())[0];
+    const mine = await addStory(db, "caedm", "Mine to cover", { now: at("2026-10-28T06:00:00Z") });
+    const theirs = await addStory(db, "caedm", "Theirs to cover", { now: at("2026-10-28T06:00:00Z") });
+    await db.insert(followUps).values([
+      { storyId: mine, assigneeId: u.id },
+      { storyId: theirs, assigneeId: other.id },
+    ]);
+    await db.update(stories).set({ reviewStatus: "assigned" });
+    await runPersonalBriefs(db, at("2026-10-28T13:31:00Z"));
+    const [b] = await briefs();
+    expect(b.text).toMatch(/YOUR FOLLOW-UPS\n- Mine to cover/);
+    expect(b.text).not.toMatch(/- Theirs to cover —/);
   });
 });
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { CircleHelp, Lightbulb, Mail, X } from "lucide-react";
+import { BookOpen, CircleHelp, Lightbulb, Mail, X } from "lucide-react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 import { submitFeatureRequestAction } from "@/actions/requests";
@@ -15,11 +16,68 @@ const ABOUT: Section = {
   body: (
     <p>
       News Desk watches approved Catholic and Edmonton news sources for the Archdiocese&apos;s Communications team. It ranks stories by importance,
-      emails a morning brief around 8:00 AM (Edmonton time), keeps the dashboard up to date while you are signed in, and tracks follow-ups so nothing
-      is missed.
+      emails the team a morning brief, sends each person their own brief at the time they choose, alerts on urgent stories, and tracks follow-ups
+      so nothing is missed.
     </p>
   ),
 };
+
+/** Topics opened by the small help icons next to individual features. */
+const TOPICS = {
+  "personal-brief": {
+    title: "Your personal news brief",
+    body: (
+      <ul className="list-disc space-y-1 pl-5">
+        <li>A summary of new stories, emailed to you at the time and on the days you choose (Edmonton time).</li>
+        <li>
+          <strong>Catholic news only</strong> includes the Archdiocese, Catholic partners, Canadian Catholic and Vatican sources.{" "}
+          <strong>All monitored news</strong> adds government and other sources.
+        </li>
+        <li>Each brief covers the news since your previous one, so nothing is skipped or repeated. Weekday briefs on Monday cover the weekend.</li>
+        <li>If nothing new was published, no email is sent that day.</li>
+        <li>It also lists the follow-ups assigned to you.</li>
+        <li>It may arrive up to 15 minutes after the time you pick.</li>
+      </ul>
+    ),
+  },
+  "send-now": {
+    title: "Send me a brief now",
+    body: (
+      <p>
+        Builds your personal brief from the last 24 hours, using your <em>Catholic news only</em> or <em>All monitored news</em> choice, and emails it
+        to you right away. It doesn&apos;t affect your scheduled brief or the team brief. You can send one per minute.
+      </p>
+    ),
+  },
+  "team-brief": {
+    title: "The team morning brief",
+    body: (
+      <p>
+        The team brief goes to the Communications mailbox every morning at the time set in Settings. Unlike personal briefs, it never repeats a
+        story it has already reported.
+      </p>
+    ),
+  },
+  "email-status": {
+    title: "What the delivery statuses mean",
+    body: (
+      <ul className="list-disc space-y-1 pl-5">
+        <li>
+          <strong>Sent</strong>: delivered to the mail server.
+        </li>
+        <li>
+          <strong>Simulated</strong>: stored here only; live email is off, so nothing was sent.
+        </li>
+        <li>
+          <strong>Failed</strong>: the mail server couldn&apos;t be reached. It retries automatically after 1, 5, 15 and 60 minutes.
+        </li>
+        <li>
+          <strong>Skipped</strong>: deliberately not sent, for example a personal brief on a day with nothing new.
+        </li>
+      </ul>
+    ),
+  },
+} satisfies Record<string, Section>;
 
 const PRIORITIES: Section = {
   title: "What the priorities mean",
@@ -42,6 +100,9 @@ const PRIORITIES: Section = {
     </ul>
   ),
 };
+
+const ALL_TOPICS = { ...TOPICS, priorities: PRIORITIES } satisfies Record<string, Section>;
+export type HelpTopic = keyof typeof ALL_TOPICS;
 
 const CONTEXT: Record<string, { heading: string; sections: Section[] }> = {
   login: {
@@ -177,11 +238,13 @@ const CONTEXT: Record<string, { heading: string; sections: Section[] }> = {
         title: "Emails",
         body: (
           <p>
-            Every brief, alert, invitation and request is listed with its delivery status. Until IT enables live email, messages are stored as
-            <em> simulated</em> and nothing leaves the system.
+            Every team brief, personal brief, alert, invitation and request is listed here with its delivery status. Open a message to see exactly
+            what was sent.
           </p>
         ),
       },
+      TOPICS["send-now"],
+      TOPICS["email-status"],
     ],
   },
   "/account": {
@@ -191,12 +254,17 @@ const CONTEXT: Record<string, { heading: string; sections: Section[] }> = {
         title: "Your email notifications",
         body: (
           <p>
-            The team mailbox always receives the brief and alerts. Here you choose what <em>you</em> also receive at your own address: the morning
-            brief, high-priority alerts (all or P0 only), follow-up assignments and, for administrators, access requests.
+            The team mailbox always receives the team brief and alerts. Here you choose what <em>you</em> also receive at your own address: your
+            personal brief, high-priority alerts (all or P0 only), follow-up assignments and, for administrators, access requests.
           </p>
         ),
       },
+      TOPICS["personal-brief"],
     ],
+  },
+  "/guide": {
+    heading: "User guide",
+    sections: [ABOUT, TOPICS["personal-brief"], PRIORITIES],
   },
 };
 
@@ -210,7 +278,7 @@ function contextFor(pathname: string, override?: string) {
 }
 
 type HelpView = "help" | "feature";
-const HelpContext = React.createContext<{ open: (v: HelpView) => void; signedIn: boolean } | null>(null);
+const HelpContext = React.createContext<{ open: (v: HelpView, topic?: HelpTopic) => void; signedIn: boolean } | null>(null);
 
 /** Owns the single help dialog for a page tree; triggers anywhere inside open it. */
 export function HelpProvider({
@@ -227,13 +295,19 @@ export function HelpProvider({
   const pathname = usePathname();
   const ref = React.useRef<HTMLDialogElement>(null);
   const [view, setView] = React.useState<HelpView>("help");
+  const [topic, setTopic] = React.useState<HelpTopic | null>(null);
   const ctx = contextFor(pathname, context);
+  const focused = topic ? ALL_TOPICS[topic] : null;
+  // The topic a help icon asked about comes first; the page's other help follows it.
+  const sections = focused ? [focused, ...ctx.sections.filter((s) => s.title !== focused.title)] : ctx.sections;
   const value = React.useMemo(
     () => ({
       signedIn,
-      open: (v: HelpView) => {
+      open: (v: HelpView, t?: HelpTopic) => {
         setView(v);
+        setTopic(t ?? null);
         ref.current?.showModal();
+        ref.current?.scrollTo({ top: 0 });
       },
     }),
     [signedIn],
@@ -266,12 +340,25 @@ export function HelpProvider({
 
         {view === "help" ? (
           <div className="space-y-6 px-5 py-5 text-sm leading-relaxed text-ink">
-            {ctx.sections.map((s) => (
-              <section key={s.title}>
+            {sections.map((s) => (
+              <section
+                key={s.title}
+                className={cn(s === focused && "rounded-lg border border-gold-300 bg-gold-100/40 p-4")}
+                aria-current={s === focused ? "true" : undefined}
+              >
                 <h3 className="mb-1.5 font-semibold">{s.title}</h3>
                 <div className="text-muted [&_strong]:text-ink">{s.body}</div>
               </section>
             ))}
+            {signedIn ? (
+              <Link
+                href="/guide"
+                onClick={() => ref.current?.close()}
+                className="flex items-center gap-2 rounded-lg border border-line px-4 py-3 font-medium text-cobalt-700 hover:bg-paper"
+              >
+                <BookOpen className="size-4" aria-hidden /> Read the full user guide
+              </Link>
+            ) : null}
             <section className="rounded-lg border border-line bg-paper p-4" aria-labelledby="support-title">
               <h3 id="support-title" className="font-semibold">
                 Help &amp; support
@@ -371,5 +458,26 @@ export function HelpTrigger({
     <Button type="button" variant={variant} size="sm" onClick={() => help.open(view)} className={className} aria-haspopup="dialog">
       <Icon /> {text}
     </Button>
+  );
+}
+
+/** Small "?" beside a feature: opens Help with that feature's explanation first. */
+export function HelpHint({ topic, label, className }: { topic: HelpTopic; label: string; className?: string }) {
+  const help = React.useContext(HelpContext);
+  if (!help) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => help.open("help", topic)}
+      aria-haspopup="dialog"
+      aria-label={`Help: ${label}`}
+      title={`Help: ${label}`}
+      className={cn(
+        "inline-flex size-6 shrink-0 items-center justify-center rounded-full align-middle text-subtle hover:bg-cobalt-50 hover:text-cobalt-700 focus-visible:text-cobalt-700",
+        className,
+      )}
+    >
+      <CircleHelp className="size-4" aria-hidden />
+    </button>
   );
 }

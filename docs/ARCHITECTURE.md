@@ -74,7 +74,9 @@ display and scheduling.
 
 - `users`: email (unique), name, role (`admin` | `manager` | `member` | `viewer`), status (`invited` | `active` |
   `disabled`), password hash, lockout counters, `is_developer`, and personal notification preferences
-  (`notify_digest`, `notify_alerts` = all/p0/none, `notify_assignments`, `notify_access_requests`).
+  (`notify_digest`, `notify_alerts` = all/p0/none, `notify_assignments`, `notify_access_requests`), and the
+  personal brief schedule (`digest_time` HH:MM or null for the team time, `digest_days` = daily/weekdays,
+  `digest_scope` = catholic/all).
 - `access_requests`: public "request access" submissions (name, work email, department, requested role,
   reason, status, reviewer, granted role).
 - `feature_requests`: staff requests emailed to the developer (title, details, type, importance, status).
@@ -89,7 +91,7 @@ display and scheduling.
 - `story_sources`: (story, source) unique. Records every source that reported the same story.
 - `story_priority_history`: every system or human priority change.
 - `follow_ups`: one per story; assignee, due date, status. `follow_up_notes`: internal notes.
-- `notifications`: kind (`digest` | `alert` | `invite` | `test`), **unique `dedupe_key`**, recipient, subject,
+- `notifications`: kind (`digest` = team brief | `brief` = personal brief | `alert` | `invite` | `test` | …), **unique `dedupe_key`**, recipient, subject,
   html/text, status (`pending` | `simulated` | `sent` | `failed` | `skipped`), attempts, next attempt, error.
 - `notification_stories`: which stories went out in which notification. Used by digest/alert dedupe.
 - `source_check_logs`: one row per check with counts, HTTP status, duration, error.
@@ -191,6 +193,16 @@ overwrites them.
     max 72 h) that were never included in an earlier digest.
   - Each story goes into exactly one section.
   - An empty digest renders a "No new stories" state.
+- **Personal briefs** (`runPersonalBriefs` in `digest.ts`).
+  - For each active user with `notify_digest`, each refresh checks their own time and days. It claims
+    `brief:<user>:<date>` the same way, with the same 4 h catch-up window.
+  - The window starts at that person's previous brief (lookback 24 h, max 72 h). Personal briefs ignore team
+    dedupe, so they never take stories away from the team brief.
+  - Scope `catholic` keeps sources of type archdiocese, catholic_partner, catholic_national and vatican.
+  - Follow-ups are limited to the person's own assignments.
+  - A day with nothing new is stored as `skipped` and not emailed.
+  - **Send me a brief now** (`sendBriefNow`) uses `brief-now:<user>:<minute>`, which allows one per minute and
+    doesn't move the scheduled window.
 - **Alerts** (`alerts.ts`).
   - Eligible stories meet all of these:
     - P0 or P1, at or above the configured minimum.
@@ -256,13 +268,16 @@ overwrites them.
   - Requests appear on the admin Overview, with a badge in the sidebar, and are emailed to admins who opted in.
   - Approval issues a normal single-use invitation with the role the admin picks.
 - **Personal notifications.**
-  - The brief and alerts always go to the team mailbox, plus each user who opted in. "P0 only" users are added
-    only when the alert contains a P0 story.
+  - The team brief goes only to the team mailbox. Opted-in users get their own personal brief instead.
+  - Alerts go to the team mailbox plus each user who opted in. "P0 only" users are added only when the alert
+    contains a P0 story.
   - Assignees get an email when someone else assigns them a follow-up.
   - Brief previews go only to the person who requested them.
-- **Contextual help.** One help panel per page tree (`HelpProvider`), opened from the login page, the
-  Overview header and the sidebar. Its content depends on the current page, and it shows the developer
-  contact.
+- **Contextual help.** One help panel per page tree (`HelpProvider`), opened from the login page, page
+  headers and the sidebar. Its content depends on the current page, and it shows the developer contact.
+  - `HelpHint` is a small "?" beside a feature. It opens the panel with that topic first and highlighted.
+  - `/guide` renders `docs/USER-GUIDE.md`, bundled as text by a webpack rule, with `src/lib/markdown.tsx`. The
+    guide therefore has one source.
 - **Feature requests.**
   - Stored, then emailed to `DEVELOPER_EMAIL` with Reply-To set to the requester (simulated until live
     email is enabled).

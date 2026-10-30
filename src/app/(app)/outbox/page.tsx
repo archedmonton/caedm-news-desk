@@ -1,16 +1,22 @@
-import { Eye, Inbox } from "lucide-react";
+import { eq } from "drizzle-orm";
+import { Eye, Inbox, Send } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { retryNotificationAction, runAlertsNowAction, saveDigestPreviewAction } from "@/actions/notifications";
+import { retryNotificationAction, runAlertsNowAction, saveDigestPreviewAction, sendBriefNowAction } from "@/actions/notifications";
 import { ActionForm, SubmitButton } from "@/components/forms";
+import { HelpHint } from "@/components/help";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/story-row";
 import { Badge, Button, Card, CardHeader } from "@/components/ui/primitives";
 import { can } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
+import { first, getDb } from "@/lib/db/client";
+import { users } from "@/lib/db/schema";
 import { evaluateAlerts } from "@/lib/notify/alerts";
+import { briefScheduleLabel } from "@/lib/notify/brief-schedule";
 import { liveEmailStatus } from "@/lib/notify/transport";
 import { listNotifications } from "@/lib/queries";
+import { getSettings } from "@/lib/settings";
 import { formatDateTime } from "@/lib/time";
 import { cn, param } from "@/lib/utils";
 
@@ -26,7 +32,8 @@ const STATUS_STYLE: Record<string, string> = {
 
 const KINDS = [
   { key: "", label: "All" },
-  { key: "digest", label: "Briefs" },
+  { key: "digest", label: "Team briefs" },
+  { key: "brief", label: "Personal briefs" },
   { key: "alert", label: "Alerts" },
   { key: "invite", label: "Invitations" },
   { key: "test", label: "Previews" },
@@ -35,6 +42,8 @@ const KINDS = [
   { key: "access_request", label: "Access requests" },
   { key: "security", label: "Security" },
 ];
+
+const KIND_LABEL: Record<string, string> = { digest: "Team brief", brief: "Personal brief", test: "Preview" };
 
 export default async function OutboxPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireUser();
@@ -45,6 +54,13 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
   const rows = (await listNotifications(kind || undefined)).filter((n) => isAdmin || (n.kind !== "invite" && n.kind !== "access_request"));
   const mail = liveEmailStatus();
   const ev = await evaluateAlerts();
+  const settings = await getSettings();
+  const me = await first(
+    getDb()
+      .select({ notifyDigest: users.notifyDigest, digestTime: users.digestTime, digestDays: users.digestDays, digestScope: users.digestScope })
+      .from(users)
+      .where(eq(users.id, user.id)),
+  );
 
   return (
     <>
@@ -59,6 +75,28 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
           </Button>
         }
       />
+      <Card className="mb-6">
+        <div className="flex flex-wrap items-start justify-between gap-4 px-5 py-4">
+          <div className="min-w-0">
+            <h2 className="flex items-center gap-1 font-semibold text-ink">
+              Your news brief <HelpHint topic="send-now" label="Send me a brief now" />
+            </h2>
+            <p className="text-sm text-muted">
+              {me?.notifyDigest
+                ? `Scheduled: ${briefScheduleLabel(me, settings.digestTime)}, ${me.digestScope === "catholic" ? "Catholic news only" : "all monitored news"}.`
+                : "No scheduled brief."}{" "}
+              <Link href="/account#brief" className="text-cobalt-700 hover:underline">
+                {me?.notifyDigest ? "Change" : "Set one up"}
+              </Link>
+            </p>
+          </div>
+          <ActionForm action={sendBriefNowAction} className="sm:text-right">
+            <SubmitButton pendingText="Sending…">
+              <Send /> Send me a brief now
+            </SubmitButton>
+          </ActionForm>
+        </div>
+      </Card>
       {!mail.live ? (
         <p role="status" className="mb-4 rounded-lg border border-cobalt-100 bg-cobalt-50 px-4 py-3 text-sm text-cobalt-800">
           <strong>Simulated delivery.</strong> {mail.reason} No real email leaves this system.
@@ -165,7 +203,7 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
                 {rows.map((n) => (
                   <tr key={n.id} data-testid="outbox-row">
                     <td className="whitespace-nowrap px-5 py-2.5 text-muted">{formatDateTime(n.createdAt)}</td>
-                    <td className="px-3 py-2.5 capitalize">{n.kind === "test" ? "preview" : n.kind.replace("_", " ")}</td>
+                    <td className={cn("px-3 py-2.5", !KIND_LABEL[n.kind] && "capitalize")}>{KIND_LABEL[n.kind] ?? n.kind.replace("_", " ")}</td>
                     <td className="px-3 py-2.5">
                       <Link href={`/outbox/${n.id}`} className="font-medium text-ink hover:text-cobalt-700 hover:underline">
                         {n.subject}

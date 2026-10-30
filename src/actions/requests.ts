@@ -9,6 +9,9 @@ import { updateOwnAccount } from "@/lib/auth/users";
 import { ROLES } from "@/lib/db/schema";
 import { approveAccessRequest, createAccessRequest, declineAccessRequest, setFeatureRequestStatus, submitFeatureRequest } from "@/lib/requests";
 import { FEATURE_REQUEST_STATUSES } from "@/lib/db/schema";
+import { BRIEF_TIMES } from "@/lib/notify/brief-schedule";
+
+const BRIEF_TIME = z.enum(["team", ...BRIEF_TIMES] as [string, ...string[]]);
 
 const id = z.coerce.number().int().positive();
 const fail = (e: unknown): ActionState => ({ error: e instanceof z.ZodError ? "Please check the form fields." : (e as Error).message });
@@ -58,6 +61,9 @@ export async function updateAccountAction(_p: ActionState, fd: FormData): Promis
     await updateOwnAccount(user.id, {
       name: String(fd.get("name") ?? ""),
       notifyDigest: on("notifyDigest"),
+      digestTime: ((t) => (t === "team" ? null : t))(BRIEF_TIME.parse(fd.get("digestTime") || "team")),
+      digestDays: z.enum(["daily", "weekdays"]).catch("daily").parse(fd.get("digestDays")),
+      digestScope: z.enum(["catholic", "all"]).catch("catholic").parse(fd.get("digestScope")),
       notifyAlerts: z.enum(["all", "p0", "none"]).parse(fd.get("notifyAlerts")),
       notifyAssignments: on("notifyAssignments"),
       // Only administrators receive access-request emails; others keep the stored value unchanged (ignored).

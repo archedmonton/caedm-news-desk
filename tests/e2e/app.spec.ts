@@ -214,3 +214,38 @@ test("members can review but not manage; viewers are read-only", async ({ page }
   await expect(page.getByRole("heading", { name: "Workflow" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Assign follow-up|Add note/ })).toHaveCount(0);
 });
+
+test("personal brief: choose a time, send one now, and find help beside each feature", async ({ page }) => {
+  await devSignIn(page);
+  await page.goto("/account");
+  await page.getByRole("checkbox", { name: /My news brief/ }).check();
+  await page.getByLabel("Time (Edmonton)").selectOption("07:30");
+  await page.getByLabel("Days").selectOption("weekdays");
+  await page.getByRole("radio", { name: /All monitored news/ }).check();
+  await page.getByRole("button", { name: "Save my settings" }).click();
+  await expect(page.getByText("Your settings were saved.")).toBeVisible();
+  await page.reload();
+  await expect(page.getByText(/Currently: Weekdays at 7:30/)).toBeVisible();
+  await expect(page.getByLabel("Time (Edmonton)")).toHaveValue("07:30");
+
+  await page.getByRole("button", { name: "Help: My news brief" }).click();
+  const help = page.getByRole("dialog");
+  await expect(help.getByRole("heading", { name: "Your personal news brief" })).toBeVisible();
+  await help.getByRole("button", { name: "Close help" }).click();
+
+  await page.goto("/outbox");
+  await page.getByRole("button", { name: "Send me a brief now", exact: true }).click();
+  await expect(page.getByText(/Your brief \(\d+ stor(y|ies)\) was saved to the outbox/)).toBeVisible();
+  await page.getByRole("link", { name: "Personal briefs" }).click();
+  await expect(page.getByTestId("outbox-row").first()).toContainText("Your CAEDM News Brief");
+  await expect(page.getByTestId("outbox-row").first()).toContainText("Personal brief");
+});
+
+test("user guide renders from the docs with a contents list", async ({ page }) => {
+  await devSignIn(page);
+  await page.getByRole("link", { name: "User guide" }).first().click();
+  await expect(page.getByRole("heading", { level: 1, name: "User guide" })).toBeVisible();
+  await page.getByRole("navigation", { name: "Guide contents" }).getByRole("link", { name: "Your personal news brief" }).click();
+  await expect(page).toHaveURL(/#your-personal-news-brief$/);
+  await expect(page.getByRole("heading", { level: 2, name: "Your personal news brief" })).toBeInViewport();
+});

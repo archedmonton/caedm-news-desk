@@ -23,7 +23,10 @@
     "digest:preview": "tsx scripts/digest-preview.ts",
     "alerts:dry-run": "tsx scripts/alerts-dry-run.ts",
     "admin:invite": "tsx scripts/admin-invite.ts",
-    "admin:invite:prod": "tsx --env-file=.env.vercel scripts/admin-invite.ts"
+    "admin:invite:prod": "tsx --env-file=.env.vercel scripts/admin-invite.ts",
+    "admin:invite:sql": "tsx --env-file=.env.vercel scripts/admin-invite-sql.ts",
+    "scheduler:sql": "tsx --env-file=.env.vercel scripts/scheduler-sql.ts",
+    "check:prod": "tsx --env-file=.env.vercel scripts/prod-check.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.13",

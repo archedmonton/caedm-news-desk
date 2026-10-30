@@ -3,14 +3,15 @@ import type { Metadata } from "next";
 import { changePasswordAction } from "@/actions/auth";
 import { updateAccountAction } from "@/actions/requests";
 import { ActionForm, SubmitButton } from "@/components/forms";
-import { HelpTrigger } from "@/components/help";
+import { HelpHint, HelpTrigger } from "@/components/help";
 import { PageHeader } from "@/components/page-header";
-import { Card, CardHeader, Checkbox, Field, Input } from "@/components/ui/primitives";
+import { Card, CardHeader, Checkbox, Field, Input, Select } from "@/components/ui/primitives";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
 import { can, ROLE_DESCRIPTIONS, ROLE_LABELS } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
 import { first, getDb } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
+import { BRIEF_TIMES, briefScheduleLabel, formatClock } from "@/lib/notify/brief-schedule";
 import { liveEmailStatus } from "@/lib/notify/transport";
 import { getSettings } from "@/lib/settings";
 import { formatDateTime } from "@/lib/time";
@@ -57,7 +58,7 @@ export default async function AccountPage() {
             <Card>
               <CardHeader
                 title="Email notifications"
-                description={`The team mailbox (${s.digestRecipient}) always receives the brief and alerts. These settings add your own address.`}
+                description={`The team mailbox (${s.digestRecipient}) always receives the team brief and alerts. These settings are for your own address, ${me.email}.`}
               />
               <div className="space-y-5 px-5 py-4">
                 {!mail.live ? (
@@ -65,13 +66,48 @@ export default async function AccountPage() {
                     Email delivery is currently simulated. Your choices are saved and will apply as soon as IT enables live email.
                   </p>
                 ) : null}
-                <label className="flex items-start gap-2.5 text-sm">
-                  <Checkbox name="notifyDigest" defaultChecked={me.notifyDigest} className="mt-0.5" />
-                  <span>
-                    <span className="font-medium text-ink">Morning News Brief</span>
-                    <span className="block text-xs text-muted">Daily at {s.digestTime} Edmonton time.</span>
-                  </span>
-                </label>
+                <div id="brief" className="scroll-mt-6 space-y-3 rounded-lg border border-line p-4">
+                  <div className="flex items-start gap-2.5 text-sm">
+                    <Checkbox id="notifyDigest" name="notifyDigest" defaultChecked={me.notifyDigest} className="mt-0.5" />
+                    <label htmlFor="notifyDigest" className="flex-1">
+                      <span className="font-medium text-ink">My news brief</span>
+                      <span className="block text-xs text-muted">
+                        A summary of new stories, emailed to you at your chosen time. Currently:{" "}
+                        {me.notifyDigest ? briefScheduleLabel(me, s.digestTime) : "off"}.
+                      </span>
+                    </label>
+                    <HelpHint topic="personal-brief" label="My news brief" />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Time (Edmonton)" htmlFor="digestTime">
+                      <Select id="digestTime" name="digestTime" defaultValue={me.digestTime ?? "team"}>
+                        <option value="team">Same as the team brief ({formatClock(s.digestTime)})</option>
+                        {BRIEF_TIMES.map((t) => (
+                          <option key={t} value={t}>
+                            {formatClock(t)}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label="Days" htmlFor="digestDays">
+                      <Select id="digestDays" name="digestDays" defaultValue={me.digestDays}>
+                        <option value="daily">Every day</option>
+                        <option value="weekdays">Weekdays only (Mon–Fri)</option>
+                      </Select>
+                    </Field>
+                  </div>
+                  <fieldset>
+                    <legend className="mb-1 text-sm font-medium text-ink">Include</legend>
+                    <Radio
+                      name="digestScope"
+                      value="catholic"
+                      checked={me.digestScope === "catholic"}
+                      label="Catholic news only"
+                      hint="The Archdiocese, Catholic partners, Canadian Catholic and Vatican sources."
+                    />
+                    <Radio name="digestScope" value="all" checked={me.digestScope === "all"} label="All monitored news" hint="Adds government and other sources." />
+                  </fieldset>
+                </div>
                 <fieldset>
                   <legend className="mb-1 text-sm font-medium text-ink">High-priority alerts</legend>
                   <Radio

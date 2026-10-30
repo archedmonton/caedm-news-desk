@@ -47,6 +47,14 @@ export const users = pgTable("users", {
   isDeveloper: boolean("is_developer").notNull().default(false),
   // Personal email notification preferences (in addition to the team mailbox in Settings).
   notifyDigest: boolean("notify_digest").notNull().default(false),
+  /** Personal brief time, "HH:MM" Edmonton; null follows the team brief's time. */
+  digestTime: text("digest_time"),
+  digestDays: text("digest_days", { enum: ["daily", "weekdays"] })
+    .notNull()
+    .default("daily"),
+  digestScope: text("digest_scope", { enum: ["catholic", "all"] })
+    .notNull()
+    .default("catholic"),
   notifyAlerts: text("notify_alerts", { enum: ["all", "p0", "none"] })
     .notNull()
     .default("none"),
@@ -228,7 +236,7 @@ export const followUpNotes = pgTable(
   (t) => [index("follow_up_notes_fu_idx").on(t.followUpId)],
 );
 
-export const NOTIFICATION_KINDS = ["digest", "alert", "invite", "test", "assignment", "access_request", "feature_request", "security"] as const;
+export const NOTIFICATION_KINDS = ["digest", "brief", "alert", "invite", "test", "assignment", "access_request", "feature_request", "security"] as const;
 
 export const NOTIFICATION_STATUSES = ["pending", "simulated", "sent", "failed", "skipped"] as const;
 export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number];

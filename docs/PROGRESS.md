@@ -67,6 +67,34 @@ are blocked on IT approval, as intended.
    data.
 5. Enable the CAEDM feed, then verify and activate further expansion sources (see `docs/SOURCES.md`).
 
+## Change request 2026-10-30: personal briefs, Send now, user guide and help icons (not yet pushed)
+
+- **Personal briefs.** In My account → My news brief, each person chooses:
+  - a time (every half hour, 5:00 am to 9:00 pm, or the team time);
+  - every day or weekdays only;
+  - Catholic news only, or all monitored news.
+
+  Their brief is sent once per day at that time. It covers the news since their previous brief and lists their
+  own follow-ups. Quiet days are recorded as skipped and not emailed.
+- **Team brief** now goes only to the team mailbox. Previously, opted-in users were added to it; they now get the
+  personal brief.
+- **Email outbox:**
+  - a "Your news brief" card with **Send me a brief now**, which sends the last 24 hours immediately, at most
+    once a minute, and reports sent, simulated or failed;
+  - a Personal briefs filter;
+  - clearer type names.
+- **Help:**
+  - `HelpHint` "?" icons beside features open Help at that topic;
+  - Help links to the full guide;
+  - a new **User guide** page renders `docs/USER-GUIDE.md`.
+- **Scheduler:** `npm run scheduler:sql` prints Supabase `pg_cron` + `pg_net` SQL (free) that refreshes every
+  15 minutes, with the secret in Vault. This is needed for personal times (DEPLOYMENT.md step 4).
+- **Office network workarounds:**
+  - `npm run admin:invite:sql` creates an invitation via the Supabase SQL editor;
+  - `npm run check:prod` tests the database and SMTP login without sending email.
+- **Migration:** `0001_personal_briefs` adds three `users` columns. It is additive, with no table rebuild.
+- **Verified:** 103 unit/integration tests (15 new) and 23 e2e tests pass; the production build passes.
+
 ## 2026-10-30: production bring-up notes
 
 - The CAEDM office network blocks outbound TCP 5432 and 6543 to Supabase (443 works). `db:setup:prod` and

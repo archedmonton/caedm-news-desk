@@ -65,3 +65,94 @@ body {
     var(--color-p0) 90% 100%
   );
 }
+
+/* User guide (rendered from docs/USER-GUIDE.md) */
+.guide {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: var(--color-ink);
+}
+.guide h2 {
+  margin: 2.25rem 0 0.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--color-line);
+  font-family: var(--font-serif);
+  font-size: 1.375rem;
+  font-weight: 600;
+  color: var(--color-maroon-800);
+  scroll-margin-top: 1.5rem;
+}
+.guide h2:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.guide h3 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  scroll-margin-top: 1.5rem;
+}
+.guide h4 {
+  margin: 1.25rem 0 0.25rem;
+  font-weight: 600;
+}
+.guide p,
+.guide ul,
+.guide ol,
+.guide blockquote,
+.guide .md-table {
+  margin: 0.75rem 0;
+  max-width: 46rem;
+}
+.guide ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+.guide ol {
+  list-style: decimal;
+  padding-left: 1.25rem;
+}
+.guide li + li {
+  margin-top: 0.25rem;
+}
+.guide a {
+  color: var(--color-cobalt-700);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.guide code {
+  border-radius: 0.25rem;
+  background: var(--color-paper);
+  padding: 0.05rem 0.3rem;
+  font-size: 0.85em;
+}
+.guide blockquote {
+  border-left: 3px solid var(--color-gold-500);
+  background: var(--color-gold-100);
+  padding: 0.6rem 0.9rem;
+  border-radius: 0 0.375rem 0.375rem 0;
+}
+.guide hr {
+  margin: 2rem 0;
+  border-color: var(--color-line);
+}
+.guide .md-table {
+  overflow-x: auto;
+}
+.guide table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.guide th,
+.guide td {
+  border-bottom: 1px solid var(--color-line);
+  padding: 0.45rem 0.75rem 0.45rem 0;
+  text-align: left;
+  vertical-align: top;
+}
+.guide th {
+  font-weight: 600;
+  color: var(--color-muted);
+}

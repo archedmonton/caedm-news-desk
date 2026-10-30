@@ -4,7 +4,7 @@ import { sources } from "./db/schema";
 import { runDueChecks } from "./ingest/collector";
 import { processAlerts } from "./notify/alerts";
 import { retryDeliveries } from "./notify/deliver";
-import { runScheduledDigest } from "./notify/digest";
+import { runPersonalBriefs, runScheduledDigest } from "./notify/digest";
 import { acquireLease, getState, releaseLease, setState } from "./settings";
 
 export type TickTrigger = "cron" | "live" | "worker" | "manual";
@@ -22,8 +22,8 @@ export type TickState = {
 const LEASE_MS = 5 * 60_000;
 
 /**
- * One refresh: check due sources → send qualifying alerts → send the morning brief if it's due → retry failed
- * emails. Safe to call from anywhere at any frequency: the lease allows one run at a time across all server
+ * One refresh: check due sources → send qualifying alerts → send the morning brief and any personal briefs that
+ * are due → retry failed emails. Safe to call from anywhere at any frequency: the lease allows one run at a time across all server
  * instances, and every step is idempotent.
  */
 export async function runTick(opts: { trigger: TickTrigger; db?: DB; log?: (m: string) => void; force?: boolean } = { trigger: "manual" }) {
@@ -38,6 +38,8 @@ export async function runTick(opts: { trigger: TickTrigger; db?: DB; log?: (m: s
     if (alert.status === "rate_limited") log(`[alerts] suppressed: ${alert.reason}`);
     const digest = await runScheduledDigest(db);
     if (digest.status === "created") log(`[digest] ${digest.dateKey} created (#${digest.notificationId}, ${digest.storyCount} stories)`);
+    const briefs = await runPersonalBriefs(db);
+    if (briefs.sent || briefs.empty) log(`[briefs] ${briefs.sent} personal briefs sent, ${briefs.empty} with nothing new`);
     const retried = await retryDeliveries(db);
     if (retried) log(`[deliver] retried ${retried} notifications`);
     const state: TickState = {

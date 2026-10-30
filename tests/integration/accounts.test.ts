@@ -190,7 +190,7 @@ describe("personal email notifications", () => {
     expect(joinRecipients("Team@caedm.ca", ["a@caedm.ca", "team@caedm.ca"], null)).toBe("team@caedm.ca, a@caedm.ca");
   });
 
-  it("adds opted-in users to the brief and respects P0-only alert preferences", async () => {
+  it("keeps the team brief to the team mailbox and respects P0-only alert preferences", async () => {
     const reader = await addUser(db, "reader@caedm.ca");
     await addUser(db, "all.alerts@caedm.ca", { notifyAlerts: "all" });
     await addUser(db, "p0.only@caedm.ca", { notifyAlerts: "p0" });
@@ -202,9 +202,8 @@ describe("personal email notifications", () => {
     );
 
     await runScheduledDigest(db, Date.parse("2026-10-28T14:01:00Z"));
-    expect((await first(db.select().from(notifications).where(eq(notifications.kind, "digest"))))!.recipient).toBe(
-      "communications@caedm.ca, reader@caedm.ca",
-    );
+    // Opted-in people get their own personal brief instead (see "personal briefs").
+    expect((await first(db.select().from(notifications).where(eq(notifications.kind, "digest"))))!.recipient).toBe("communications@caedm.ca");
 
     const opts = { now: NOW - 60_000, rules: DEFAULT_PRIORITY_RULES, baseline: false };
     const item = (title: string) => ({

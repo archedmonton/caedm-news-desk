@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardList, Inbox, LayoutDashboard, LogOut, Menu, Newspaper, Radio, Settings, UserCog, X } from "lucide-react";
+import { BookOpen, ClipboardList, Inbox, LayoutDashboard, LogOut, Menu, Newspaper, Radio, Settings, UserCog, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -88,6 +88,10 @@ export function AppShell({
         >
           <UserCog className="size-4" aria-hidden />
           <span className="flex-1">My account</span>
+        </Link>
+        <Link href="/guide" aria-current={isActive(pathname, "/guide") ? "page" : undefined} className={linkClass(isActive(pathname, "/guide"))}>
+          <BookOpen className="size-4" aria-hidden />
+          <span className="flex-1">User guide</span>
         </Link>
         <HelpTrigger variant="sidebar" label="Help & support" />
         <HelpTrigger variant="sidebar" view="feature" />

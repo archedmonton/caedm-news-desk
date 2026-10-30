@@ -1,4 +1,4 @@
-import "./_bootstrap";
+import { describeError } from "./_bootstrap";
 import { createInvitation } from "../src/lib/auth/users";
 import { closeDb } from "../src/lib/db/client";
 
@@ -18,7 +18,7 @@ async function main() {
 
 main()
   .catch((e) => {
-    console.error(`✗ ${(e as Error).message}`);
+    console.error(`✗ ${describeError(e)}`);
     process.exitCode = 1;
   })
   .finally(closeDb);

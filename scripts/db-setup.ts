@@ -1,4 +1,4 @@
-import "./_bootstrap";
+import { describeError } from "./_bootstrap";
 import { eq } from "drizzle-orm";
 import { closeDb, dbKind, getDb, openPostgres, setDb } from "../src/lib/db/client";
 import { runMigrations } from "../src/lib/db/migrate";
@@ -58,7 +58,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(`✗ ${(err as Error).message}`);
+    console.error(`✗ ${describeError(err)}`);
     process.exitCode = 1;
   })
   .finally(closeDb);

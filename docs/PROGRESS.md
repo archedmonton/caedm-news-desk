@@ -67,7 +67,17 @@ are blocked on IT approval, as intended.
    data.
 5. Enable the CAEDM feed, then verify and activate further expansion sources (see `docs/SOURCES.md`).
 
-## Change request 2026-10-29 (2): change password (branch `feature/change-password`, not yet pushed)
+## 2026-10-30: production bring-up notes
+
+- The CAEDM office network blocks outbound TCP 5432 and 6543 to Supabase (443 works). `db:setup:prod` and
+  `admin:invite:prod` time out from the office: run them from another network, or have IT allow those ports.
+  Vercel is not affected.
+- Supabase connection strings must use the pooler host with user `postgres.<ref>` and a URL-encoded password. The
+  "Direct connection" host is IPv6-only.
+- CLI scripts now print the driver's underlying cause under Drizzle's "Failed query" message.
+- `.env.example` documents the production value for each setting. `.env` stays local-only.
+
+## Change request 2026-10-29 (2): change password (✅ pushed b07f404)
 
 - **My account → Password:** current password, new password and confirmation.
   - New passwords follow the sign-up rules: 12+ characters, and different from the current one.
@@ -78,7 +88,7 @@ are blocked on IT approval, as intended.
 - Verified by integration tests (3 new, 88 total) and the e2e flow invite → set password → change it → old
   password rejected → new one accepted (21/21).
 
-## Change request 2026-10-29: production backend setup (branch `feature/production-setup`, not yet pushed)
+## Change request 2026-10-29: production backend setup (✅ pushed 65df6bb)
 
 - `.env.vercel` (git-ignored) holds every production variable, ready for Vercel "Import .env". SMTP was taken from
   IT details and verified (login only, no email sent). It also has a generated `CRON_SECRET` and placeholders for

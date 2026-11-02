@@ -57,7 +57,7 @@ export async function acceptInviteAction(_prev: ActionState, fd: FormData): Prom
   } catch (e) {
     return { error: (e as Error).message };
   }
-  redirect("/");
+  redirect("/?welcome=1");
 }
 
 export async function changePasswordAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
@@ -71,6 +71,7 @@ export async function changePasswordAction(_prev: ActionState, fd: FormData): Pr
       currentPassword: String(fd.get("currentPassword") ?? ""),
       newPassword,
       keepSessionHash: await currentSessionHash(),
+      delivery: "after-response",
     });
     const others = r.otherSessionsEnded
       ? ` You were signed out on ${r.otherSessionsEnded} other ${r.otherSessionsEnded === 1 ? "device" : "devices"}.`

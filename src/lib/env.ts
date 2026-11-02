@@ -59,6 +59,18 @@ export function env(): Env {
 
 export const isProduction = () => env().NODE_ENV === "production";
 
+/**
+ * Base URL for links in emails, without a trailing slash. In production it must be the public address: a
+ * localhost link in an invitation would be unusable, so refuse to send one.
+ */
+export function publicAppUrl(): string {
+  const url = env().APP_URL.replace(/\/+$/, "");
+  if (isProduction() && ["localhost", "127.0.0.1", "0.0.0.0"].includes(new URL(url).hostname)) {
+    throw new Error("APP_URL is not set to the public address of News Desk, so email links would not work. Ask the developer to set it.");
+  }
+  return url;
+}
+
 /** Test hook: re-read process.env. */
 export function resetEnvCache() {
   cached = undefined;

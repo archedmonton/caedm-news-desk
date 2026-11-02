@@ -21,23 +21,102 @@ export function liveEmailStatus(): { live: boolean; transport: string; reason: s
   return { live: true, transport: e.EMAIL_TRANSPORT, reason: `Live delivery via ${e.EMAIL_TRANSPORT}.` };
 }
 
+/**
+ * The provider may have accepted the message, but we never got its confirmation (e.g. a timeout after the
+ * message data was sent). Never retried automatically: retrying could deliver a second copy.
+ */
+export class UncertainDeliveryError extends Error {
+  readonly uncertain = true;
+}
+
+export const isUncertainDelivery = (e: unknown): e is UncertainDeliveryError => e instanceof UncertainDeliveryError;
+
+/**
+ * Hard ceiling for one send, kept under the 60 s function limit of the pages that send email. Exchange can hold
+ * its final "250 Queued" reply for up to 30 s (delayed acknowledgement), so the socket timeout allows for that.
+ */
+export const SEND_DEADLINE_MS = 45_000;
+
+function withDeadline<T>(p: Promise<T>, ms: number, onTimeout: () => Error): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    p,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(onTimeout()), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+export type SmtpConfig = {
+  host: string;
+  port: number;
+  secure: boolean;
+  user?: string;
+  password?: string;
+  from: string;
+  /** Overridable for tests against a local fake server. */
+  socketTimeoutMs?: number;
+  deadlineMs?: number;
+};
+
 function smtpTransport(): MailTransport {
   const e = env();
-  const t = nodemailer.createTransport({
-    host: e.SMTP_HOST,
+  return createSmtpTransport({
+    host: e.SMTP_HOST!,
     port: e.SMTP_PORT ?? 587,
     secure: e.SMTP_SECURE,
-    auth: e.SMTP_USER ? { user: e.SMTP_USER, pass: e.SMTP_PASSWORD } : undefined,
-    // Fail fast inside serverless functions; undelivered mail is retried by the next refresh.
-    connectionTimeout: 15_000,
-    greetingTimeout: 15_000,
-    socketTimeout: 30_000,
+    user: e.SMTP_USER,
+    password: e.SMTP_PASSWORD,
+    from: e.EMAIL_FROM,
   });
+}
+
+export function createSmtpTransport(c: SmtpConfig): MailTransport {
+  const deadline = c.deadlineMs ?? SEND_DEADLINE_MS;
   return {
     name: "smtp",
     async send(msg) {
-      const info = await t.sendMail({ from: e.EMAIL_FROM, ...msg });
-      return { messageId: info.messageId };
+      // Once DATA is sent the server may queue the message even if its reply never reaches us.
+      let dataSent = false;
+      const quiet = () => {};
+      const t = nodemailer.createTransport({
+        host: c.host,
+        port: c.port,
+        secure: c.secure,
+        auth: c.user ? { user: c.user, pass: c.password } : undefined,
+        connectionTimeout: Math.min(10_000, deadline),
+        greetingTimeout: Math.min(10_000, deadline),
+        socketTimeout: c.socketTimeoutMs ?? 40_000,
+        // Only client command names are inspected (AUTH lines are masked by nodemailer); nothing is logged.
+        transactionLog: true,
+        logger: {
+          trace: quiet,
+          info: quiet,
+          warn: quiet,
+          error: quiet,
+          fatal: quiet,
+          debug: (entry: { tnx?: string }, line: unknown) => {
+            if (entry?.tnx === "client" && /^DATA\b/i.test(String(line))) dataSent = true;
+          },
+        },
+      });
+      try {
+        const info = await withDeadline(
+          t.sendMail({ from: c.from, ...msg }),
+          deadline,
+          () => new Error(`No reply from the mail server within ${deadline / 1000} s`),
+        );
+        return { messageId: info.messageId };
+      } catch (err) {
+        const code = (err as { responseCode?: number }).responseCode;
+        // An explicit 4xx/5xx reply means the server refused the message: safe to retry.
+        if (dataSent && !(code && code >= 400)) {
+          throw new UncertainDeliveryError(`Delivery unconfirmed: the mail server received the message but did not confirm it (${(err as Error).message}).`);
+        }
+        throw err;
+      } finally {
+        t.close();
+      }
     },
   };
 }
@@ -80,6 +159,9 @@ function graphTransport(): MailTransport {
           saveToSentItems: true,
         }),
         signal: AbortSignal.timeout(20_000),
+      }).catch((err: Error) => {
+        // The request may have reached Graph before the connection failed.
+        throw new UncertainDeliveryError(`Delivery unconfirmed: no response from Microsoft Graph (${err.message}).`);
       });
       if (!res.ok) throw new Error(`Graph sendMail failed: HTTP ${res.status}`);
       return {};

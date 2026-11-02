@@ -38,7 +38,7 @@ function Stat({ label, value, sub, href, tone }: { label: string; value: number 
   );
 }
 
-export default async function OverviewPage() {
+export default async function OverviewPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireUser();
   const now = Date.now();
   const o = await getOverview(user.email, now);
@@ -64,6 +64,17 @@ export default async function OverviewPage() {
           </>
         }
       />
+
+      {(await searchParams).welcome ? (
+        <div role="status" className="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          <strong>Welcome to CAEDM News Desk. Your account is ready.</strong> Next, choose when you&apos;d like your news brief and which alerts
+          you want in{" "}
+          <Link href="/notifications" className="font-medium underline underline-offset-2">
+            Notifications &amp; alerts
+          </Link>
+          .
+        </div>
+      ) : null}
 
       {requests.length ? (
         <div className="mb-6">

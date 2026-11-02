@@ -1,11 +1,11 @@
-import { and, desc, eq, inArray, isNull, like, ne, notInArray, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, like, ne, notInArray, sql, type SQL } from "drizzle-orm";
 import { first, getDb, type DB } from "../db/client";
 import { followUps, notifications, notificationStories, sources, stories, users, type Story, type User } from "../db/schema";
 import { env } from "../env";
 import { getSettings } from "../settings";
 import { edmontonDateKey, formatTime, scheduledInstantForDay, zonedParts } from "../time";
 import { briefScheduleLabel } from "./brief-schedule";
-import { deliverNotification } from "./deliver";
+import { dispatchNotification, type DeliveryMode } from "./dispatch";
 import { renderDigest, type DigestFollowUp, type DigestSection, type EmailStory } from "./templates/emails";
 
 const MAX_PER_SECTION = 8;
@@ -187,7 +187,15 @@ function isWeekend(now: number) {
   return day === 0 || day === 6;
 }
 
-async function storePersonalBrief(db: DB, u: BriefUser, built: DigestBuild, dedupeKey: string, now: number, meta: Record<string, unknown>) {
+async function storePersonalBrief(
+  db: DB,
+  u: BriefUser,
+  built: DigestBuild,
+  dedupeKey: string,
+  now: number,
+  meta: Record<string, unknown>,
+  delivery: DeliveryMode = "now",
+) {
   const row = (
     await db
       .insert(notifications)
@@ -206,7 +214,7 @@ async function storePersonalBrief(db: DB, u: BriefUser, built: DigestBuild, dedu
       .returning({ id: notifications.id })
   )[0];
   if (!row) return null;
-  const delivered = await deliverNotification(row.id, db, now);
+  const delivered = await dispatchNotification(row.id, delivery, db, now);
   return { id: row.id, status: delivered?.status ?? "pending", error: delivered?.lastError ?? null };
 }
 
@@ -258,8 +266,19 @@ export async function runPersonalBriefs(db: DB = getDb(), now = Date.now()): Pro
   return out;
 }
 
-/** "Send me a brief now": the last lookback period, emailed immediately. Doesn't move the scheduled brief's window. */
-export async function sendBriefNow(userId: number, db: DB = getDb(), now = Date.now()) {
+/** A second on-demand brief this soon is almost always a double click or a retried request. */
+export const BRIEF_NOW_GUARD_MS = 60_000;
+
+/**
+ * "Send me a brief now": the last lookback period, emailed immediately. Doesn't move the scheduled brief's window.
+ * `opId` (one per click) makes a repeated request return the first result instead of sending again.
+ */
+export async function sendBriefNow(
+  userId: number,
+  db: DB = getDb(),
+  now = Date.now(),
+  opts: { opId?: string; delivery?: DeliveryMode } = {},
+) {
   const settings = await getSettings(db);
   const u = await first(
     db
@@ -268,10 +287,30 @@ export async function sendBriefNow(userId: number, db: DB = getDb(), now = Date.
       .where(and(eq(users.id, userId), eq(users.status, "active"))),
   );
   if (!u) throw new Error("Your account is not active.");
+  const dedupeKey = opts.opId ? `brief-now:${u.id}:${opts.opId}` : `brief-now:${u.id}:${now}`;
+  if (opts.opId) {
+    const prior = await first(db.select().from(notifications).where(eq(notifications.dedupeKey, dedupeKey)));
+    if (prior) {
+      const storyCount = Number(prior.meta?.storyCount ?? 0);
+      return { notificationId: prior.id, status: prior.status, error: prior.lastError, storyCount, recipient: u.email, duplicate: true };
+    }
+  }
+  const recent = await first(
+    db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.kind, "brief"),
+          like(notifications.dedupeKey, `brief-now:${u.id}:%`),
+          gte(notifications.createdAt, now - BRIEF_NOW_GUARD_MS),
+        ),
+      ),
+  );
+  if (recent) throw new Error("A brief was just sent to you. Please wait a minute before sending another.");
   const windowStart = now - settings.digestLookbackHours * 3600_000;
   const built = await buildDigest(db, now, { personal: { user: u, scope: u.digestScope, scheduleLabel: "Sent on request" }, windowStart });
-  // One per person per minute, so a double click can't send twice.
-  const stored = await storePersonalBrief(db, u, built, `brief-now:${u.id}:${Math.floor(now / 60_000)}`, now, { onDemand: true });
+  const stored = await storePersonalBrief(db, u, built, dedupeKey, now, { onDemand: true, op: opts.opId }, opts.delivery);
   if (!stored) throw new Error("A brief was just sent to you. Please wait a minute before sending another.");
-  return { notificationId: stored.id, status: stored.status, error: stored.error, storyCount: built.storyIds.length, recipient: u.email };
+  return { notificationId: stored.id, status: stored.status, error: stored.error, storyCount: built.storyIds.length, recipient: u.email, duplicate: false };
 }

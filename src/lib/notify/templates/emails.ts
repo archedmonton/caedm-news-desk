@@ -1,7 +1,7 @@
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from "../../auth/permissions";
 import type { Priority, Role } from "../../db/schema";
 import { formatDateTime, formatLongDate, formatTime } from "../../time";
-import { COLORS, emailLayout, esc, priorityPill, reviewPill, safeHref } from "./layout";
+import { COLORS, emailButton, emailLayout, esc, FONT, priorityPill, reviewPill, safeHref } from "./layout";
 
 export type EmailStory = {
   id: number;
@@ -75,14 +75,14 @@ export function renderDigest(opts: {
           (
             sec,
             i,
-          ) => `<h2 style="font-size:15px;text-transform:uppercase;letter-spacing:.05em;color:${COLORS.gold};margin:24px 0 4px">${i + 1}. ${esc(sec.title)}</h2>
+          ) => `<h2 style="font-family:${FONT};font-size:13px;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:${COLORS.goldText};padding-bottom:4px;border-bottom:2px solid ${COLORS.gold};margin:24px 0 4px">${i + 1}. ${esc(sec.title)}</h2>
 ${sec.note ? `<div style="font-size:12px;color:${COLORS.muted}">${esc(sec.note)}</div>` : ""}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${sec.stories.map((s) => storyHtml(s, sec.key === "top", opts.appUrl)).join("")}</table>
 ${sec.more ? `<div style="font-size:12px;color:${COLORS.muted};margin-top:6px">+ ${sec.more} more in the <a href="${safeHref(`${opts.appUrl}/news`)}" style="color:${COLORS.accent}">News Feed</a></div>` : ""}`,
         )
         .join("")
     : `<div style="margin:24px 0;padding:20px;border:1px dashed ${COLORS.border};border-radius:8px;text-align:center;color:${COLORS.muted};font-size:14px">No new stories from monitored sources since the last briefing.</div>`;
-  const fuHtml = `<h2 style="font-size:15px;text-transform:uppercase;letter-spacing:.05em;color:${COLORS.gold};margin:28px 0 4px">${p ? "Your follow-ups" : "Outstanding Communications follow-ups"}</h2>
+  const fuHtml = `<h2 style="font-family:${FONT};font-size:13px;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:${COLORS.goldText};padding-bottom:4px;border-bottom:2px solid ${COLORS.gold};margin:28px 0 4px">${p ? "Your follow-ups" : "Outstanding Communications follow-ups"}</h2>
 ${
   opts.followUps.length
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${opts.followUps
@@ -94,7 +94,7 @@ ${
         .join("")}</table>`
     : `<div style="font-size:14px;color:${COLORS.muted}">${p ? "Nothing is assigned to you." : "No outstanding follow-ups."}</div>`
 }`;
-  const settingsUrl = `${opts.appUrl}/account#brief`;
+  const settingsUrl = `${opts.appUrl}/notifications#brief`;
   const html = emailLayout({
     title: p ? `Your News Brief — ${date}` : `Morning News Brief — ${date}`,
     preheader: opts.totalStories ? `${opts.totalStories} new stories${p ? scopeNote : " for Communications review"}` : "No new stories today",
@@ -199,25 +199,25 @@ export function renderInvite(opts: {
     ["Invited by", opts.invitedBy],
   ];
   const steps = [
-    "Select <strong>Accept invitation and create password</strong> below.",
-    "Confirm your name and choose a password of at least 12 characters.",
-    `You'll be signed in straight away. Next time, sign in at <a href="${safeHref(opts.appUrl)}" style="color:${COLORS.accent}">${esc(opts.appUrl.replace(/^https?:\/\//, ""))}</a> with your work email.`,
+    "Select <strong>Accept invitation</strong> below.",
+    "Confirm your name and create a password of at least 12 characters.",
+    `You're signed in straight away. Next time, sign in at <a href="${safeHref(opts.appUrl)}" style="color:${COLORS.accent}">${esc(opts.appUrl.replace(/^https?:\/\//, ""))}</a> with your work email.`,
   ];
-  const p = "font-size:14px;line-height:1.6;margin:14px 0";
+  const p = "margin:0 0 14px 0;font-size:15px;line-height:1.6";
   const html = emailLayout({
     kind: "account",
     title: "You're invited to CAEDM News Desk",
-    preheader: `${opts.invitedBy} invited you to join CAEDM News Desk as ${role}.`,
+    preheader: `${opts.invitedBy} invited you to join CAEDM News Desk as ${role}. Accept by ${formatDateTime(opts.expiresAt)}.`,
     body: `<p style="${p};margin-top:18px">${esc(greeting)}</p>
-<p style="${p}">${esc(opts.invitedBy)} has invited you to join <strong>CAEDM News Desk</strong>, the Communications team's news-monitoring service for the Catholic Archdiocese of Edmonton. It gathers news from trusted Catholic and community sources, highlights what needs attention and can send you a daily news brief.</p>
+<p style="${p}">${esc(opts.invitedBy)} has invited you to join <strong>CAEDM News Desk</strong>, the Communications team's news-monitoring service for the Catholic Archdiocese of Edmonton. It gathers news from trusted Catholic and community sources, highlights what needs attention and can email you a daily news brief.</p>
+${emailButton(opts.inviteUrl, "Accept invitation")}
 ${detailRows(rows)}
-<p style="${p};font-weight:600;margin-bottom:6px">To get started</p>
-<ol style="font-size:14px;line-height:1.6;margin:0 0 4px 0;padding-left:20px">${steps.map((t) => `<li style="margin:2px 0">${t}</li>`).join("")}</ol>
-${button(opts.inviteUrl, "Accept invitation and create password")}
-<p style="font-size:12px;line-height:1.5;color:${COLORS.muted};margin:0 0 14px 0">If the button doesn't work, copy this link into your browser:<br><a href="${safeHref(opts.inviteUrl)}" style="color:${COLORS.accent};word-break:break-all">${esc(opts.inviteUrl)}</a></p>
-<p style="font-size:13px;line-height:1.6;color:${COLORS.muted};margin:14px 0">For your security, this link works once and expires ${esc(expires)}. If it expires, ask an administrator to send a new one. Not expecting this invitation? You can safely ignore it; no account is created until it is accepted.</p>
-<p style="${p}">Questions? Contact ${esc(opts.support.name)} at <a href="mailto:${esc(opts.support.email)}" style="color:${COLORS.accent}">${esc(opts.support.email)}</a>.</p>
-<p style="${p}">With thanks,<br><strong>Communications</strong><br>Catholic Archdiocese of Edmonton</p>`,
+<p style="margin:18px 0 6px 0;font-size:14px;font-weight:bold">How to get started</p>
+<ol style="margin:0 0 16px 0;padding-left:20px;font-size:14px;line-height:1.6">${steps.map((t) => `<li style="margin:2px 0">${t}</li>`).join("")}</ol>
+<p style="margin:0 0 14px 0;font-size:13px;line-height:1.6;color:${COLORS.muted}"><strong style="color:${COLORS.ink}">This link expires ${esc(expires)}</strong> and works once. If it has expired, ask an administrator to send a new one. Not expecting this invitation? You can safely ignore it; no account is created until it is accepted.</p>
+<p style="margin:0 0 18px 0;font-size:12px;line-height:1.5;color:${COLORS.muted}">Button not working? Copy this link into your browser:<br><a href="${safeHref(opts.inviteUrl)}" style="color:${COLORS.accent};word-break:break-all">${esc(opts.inviteUrl)}</a></p>
+<p style="${p};font-size:14px">Questions? Contact ${esc(opts.support.name)} at <a href="mailto:${esc(opts.support.email)}" style="color:${COLORS.accent}">${esc(opts.support.email)}</a>.</p>
+<p style="${p};font-size:14px;margin-bottom:0">With thanks,<br><strong>Communications</strong><br>Catholic Archdiocese of Edmonton</p>`,
   });
   const text = [
     greeting,
@@ -227,8 +227,8 @@ ${button(opts.inviteUrl, "Accept invitation and create password")}
     ...rows.map(([k, v]) => `${k}: ${v}`),
     "",
     "To get started:",
-    "1. Open the link below to accept the invitation and create your password.",
-    "2. Confirm your name and choose a password of at least 12 characters.",
+    "1. Open the link below to accept the invitation.",
+    "2. Confirm your name and create a password of at least 12 characters.",
     `3. You'll be signed in straight away. Next time, sign in at ${opts.appUrl} with your work email.`,
     "",
     opts.inviteUrl,
@@ -242,16 +242,12 @@ ${button(opts.inviteUrl, "Accept invitation and create password")}
 }
 
 function detailRows(rows: [string, string][]) {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0;font-size:14px;line-height:1.5">${rows
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0;border:1px solid ${COLORS.border};border-radius:6px;font-family:${FONT};font-size:14px;line-height:1.5">${rows
     .map(
-      ([k, v]) =>
-        `<tr><td style="padding:4px 16px 4px 0;color:${COLORS.muted};vertical-align:top;white-space:nowrap">${esc(k)}</td><td style="padding:4px 0;white-space:pre-wrap">${esc(v)}</td></tr>`,
+      ([k, v], i) =>
+        `<tr><td valign="top" style="padding:8px 12px;width:34%;color:${COLORS.muted};${i ? `border-top:1px solid ${COLORS.border};` : ""}">${esc(k)}</td><td valign="top" style="padding:8px 12px;white-space:pre-wrap;color:${COLORS.ink};${i ? `border-top:1px solid ${COLORS.border};` : ""}">${esc(v)}</td></tr>`,
     )
     .join("")}</table>`;
-}
-
-function button(href: string, label: string) {
-  return `<p style="margin:20px 0"><a href="${safeHref(href)}" style="display:inline-block;padding:10px 18px;background:${COLORS.accent};color:#fff;border-radius:6px;text-decoration:none;font-weight:600">${esc(label)}</a></p>`;
 }
 
 export function renderAssignment(opts: {
@@ -275,7 +271,7 @@ export function renderAssignment(opts: {
   const html = emailLayout({
     title: "Follow-up assigned to you",
     preheader: opts.storyTitle,
-    body: `${detailRows(rows)}${button(`${opts.appUrl}/news/${opts.storyId}#follow-up`, "Open in News Desk")}<p style="font-size:13px"><a href="${safeHref(opts.storyUrl)}" style="color:${COLORS.accent}">Original source</a></p>`,
+    body: `${detailRows(rows)}${emailButton(`${opts.appUrl}/news/${opts.storyId}#follow-up`, "Open in News Desk")}<p style="font-size:13px"><a href="${safeHref(opts.storyUrl)}" style="color:${COLORS.accent}">Original source</a></p>`,
     footerNote: "You receive this because follow-up assignment emails are on in your account settings.",
   });
   const text = [subject, "", ...rows.map(([k, v]) => `${k}: ${v}`), "", `${opts.appUrl}/news/${opts.storyId}`].join("\n");
@@ -303,10 +299,10 @@ export function renderAccessRequest(opts: {
   const html = emailLayout({
     title: "New access request",
     preheader: `${opts.name} wants to join CAEDM News Desk`,
-    body: `<p style="font-size:14px;margin-top:16px">Someone asked to join CAEDM News Desk. Review the request on your dashboard. No account exists until an administrator approves it.</p>${detailRows(rows)}${button(`${opts.appUrl}/`, "Review on dashboard")}`,
+    body: `<p style="margin:18px 0 0 0">Someone asked to join CAEDM News Desk. Review it in Team management. No account exists until an administrator approves it.</p>${detailRows(rows)}${emailButton(`${opts.appUrl}/team`, "Review in Team management")}`,
     footerNote: "Sent to administrators with access-request emails turned on.",
   });
-  const text = [subject, "", ...rows.map(([k, v]) => `${k}: ${v}`), "", `Review: ${opts.appUrl}/`].join("\n");
+  const text = [subject, "", ...rows.map(([k, v]) => `${k}: ${v}`), "", `Review: ${opts.appUrl}/team`].join("\n");
   return { subject, html, text };
 }
 
@@ -336,7 +332,7 @@ export function renderFeatureRequest(opts: {
   const html = emailLayout({
     title: "Feature request",
     preheader: opts.title,
-    body: `<p style="font-size:14px;margin-top:16px">Hello ${esc(opts.developerName)}, a News Desk user submitted a request.</p>${detailRows(rows)}${button(`${opts.appUrl}/settings#feature-requests`, "View all requests")}`,
+    body: `<p style="margin:18px 0 0 0">Hello ${esc(opts.developerName)}, a News Desk user submitted a request.</p>${detailRows(rows)}${emailButton(`${opts.appUrl}/settings#feature-requests`, "View all requests")}`,
     footerNote: "Reply to the requester directly at the address above.",
   });
   const text = [subject, "", ...rows.map(([k, v]) => `${k}: ${v}`), "", `${opts.appUrl}/settings#feature-requests`].join("\n");
@@ -360,7 +356,7 @@ export function renderPasswordChanged(opts: {
   const html = emailLayout({
     title: "Password changed",
     preheader: subject,
-    body: `<p style="font-size:14px">Your password for CAEDM News Desk was just changed.</p>${detailRows(rows)}<p style="font-size:14px;font-weight:600">${esc(warning)}</p>${button(`${opts.appUrl}/account`, "Open my account")}`,
+    body: `<p style="margin:18px 0 0 0">Your password for CAEDM News Desk was just changed.</p>${detailRows(rows)}<p style="margin:0;font-weight:bold">${esc(warning)}</p>${emailButton(`${opts.appUrl}/account`, "Open my account")}`,
     kind: "account",
     footerNote: "Security notices are always sent and can't be turned off.",
   });

@@ -21,6 +21,8 @@
     "db:seed:sample": "tsx scripts/db-setup.ts --sample",
     "collect": "tsx scripts/collect.ts",
     "digest:preview": "tsx scripts/digest-preview.ts",
+    "previews:email": "tsx scripts/email-previews.ts",
+    "previews:ui": "playwright test -c playwright.previews.config.ts",
     "alerts:dry-run": "tsx scripts/alerts-dry-run.ts",
     "admin:invite": "tsx scripts/admin-invite.ts",
     "admin:invite:prod": "tsx --env-file=.env.vercel scripts/admin-invite.ts",

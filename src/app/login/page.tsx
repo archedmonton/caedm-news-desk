@@ -18,6 +18,8 @@ import { env } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Sign in" };
 export const dynamic = "force-dynamic";
+/** The access-request form emails administrators after responding. */
+export const maxDuration = 60;
 
 const ROLE_ORDER = { admin: 0, manager: 1, member: 2 } as const;
 

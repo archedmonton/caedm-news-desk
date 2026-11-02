@@ -97,7 +97,7 @@ describe("authentication & authorization", () => {
   it("invitation is single-use, expires, and activates the account", async () => {
     const now = Date.parse("2026-10-28T18:00:00Z");
     const inv = await createInvitation({ email: "New.Person@caedm.ca", role: "member", invitedBy: null }, db, now);
-    const token = inv.inviteUrl.split("/invite/")[1];
+    const token = inv.inviteUrl!.split("/invite/")[1];
     expect((await first(db.select().from(notifications).where(eq(notifications.kind, "invite"))))!.status).toBe("simulated");
     expect(await findInvitation(token, db, now + 73 * 3600_000)).toBeUndefined();
     await acceptInvitation({ token, name: "New Person", password: "correct horse battery" }, db, now + 60_000);

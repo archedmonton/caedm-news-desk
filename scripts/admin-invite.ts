@@ -12,7 +12,7 @@ async function main() {
     process.exit(1);
   }
   const r = await createInvitation({ email, role: role as Role, invitedBy: null });
-  console.log(`Invitation created for ${email} (${role}); expires ${new Date(r.expiresAt).toISOString()}.`);
+  console.log(`Invitation created for ${email} (${role}); expires ${new Date(r.expiresAt!).toISOString()}.`);
   console.log("One-time link (deliver securely to the invitee):");
   console.log(r.inviteUrl);
 }

@@ -8,6 +8,7 @@ import { audit } from "@/lib/audit";
 import { productionAccess } from "@/lib/auth/access";
 import { requireUser } from "@/lib/auth/session";
 import { createInvitation, deleteUser, setUserRole, setUserStatus } from "@/lib/auth/users";
+import { parseOpId } from "@/lib/op-id";
 import { first, getDb } from "@/lib/db/client";
 import { ROLES, sources } from "@/lib/db/schema";
 import { checkSource, reclassifyAll } from "@/lib/ingest/collector";
@@ -150,9 +151,16 @@ export async function inviteStaffAction(_p: ActionState, fd: FormData): Promise<
       .max(100)
       .parse(String(fd.get("name") ?? ""));
     const role = z.enum(ROLES).parse(fd.get("role"));
-    await createInvitation({ email, name, role, invitedBy: { id: user.id, name: user.name || user.email } });
+    const r = await createInvitation({
+      email,
+      name,
+      role,
+      invitedBy: { id: user.id, name: user.name || user.email },
+      opId: parseOpId(fd),
+      delivery: "after-response",
+    });
     revalidatePath("/team");
-    return { ok: true, message: `Invitation sent to ${name} (${email}). It's also in Email outbox → Invitations.` };
+    return { ok: true, message: `Invitation created for ${name} (${r.email}).`, notificationId: r.notificationId };
   } catch (e) {
     return fail(e);
   }

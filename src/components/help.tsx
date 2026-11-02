@@ -92,6 +92,13 @@ const TOPICS = {
           <strong>Failed</strong>: the mail server couldn&apos;t be reached. It retries automatically after 1, 5, 15 and 60 minutes.
         </li>
         <li>
+          <strong>Sending</strong>: being handed to the mail server now, usually within a few seconds.
+        </li>
+        <li>
+          <strong>Unconfirmed</strong>: the mail server received the message but never confirmed it, so it may or may not have arrived. It is not
+          resent automatically, to avoid a duplicate. Check with the recipient; a manager can then choose <strong>Resend anyway</strong>.
+        </li>
+        <li>
           <strong>Skipped</strong>: deliberately not sent, for example a personal brief on a day with nothing new.
         </li>
       </ul>

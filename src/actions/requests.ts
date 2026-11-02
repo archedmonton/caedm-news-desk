@@ -28,7 +28,7 @@ export async function requestAccessAction(_p: ActionState, fd: FormData): Promis
       department: String(fd.get("department") ?? ""),
       requestedRole: role,
       reason: String(fd.get("reason") ?? ""),
-    });
+    }, undefined, undefined, "after-response");
     revalidatePath("/", "layout");
     return { ok: true, message: r.message };
   } catch (e) {
@@ -40,7 +40,7 @@ export async function approveAccessRequestAction(_p: ActionState, fd: FormData):
   try {
     const user = await requireUser("manage_staff");
     const role = z.enum(ROLES).parse(fd.get("role"));
-    await approveAccessRequest(id.parse(fd.get("requestId")), role, { id: user.id, name: user.name || user.email });
+    await approveAccessRequest(id.parse(fd.get("requestId")), role, { id: user.id, name: user.name || user.email }, undefined, undefined, "after-response");
     revalidatePath("/", "layout");
     return { ok: true, message: "Approved. An invitation was sent to their work email." };
   } catch (e) {
@@ -96,15 +96,12 @@ export async function submitFeatureRequestAction(_p: ActionState, fd: FormData):
       importance: z.enum(["nice_to_have", "important", "urgent"]).catch("important").parse(fd.get("importance")),
       page: String(fd.get("page") ?? "") || null,
       user,
-    });
+    }, undefined, undefined, "after-response");
     revalidatePath("/settings");
     revalidatePath("/outbox");
     return {
       ok: true,
-      message:
-        r.deliveryStatus === "sent"
-          ? `Request #${r.id} was emailed to the developer (${r.developerEmail}). Thank you!`
-          : `Request #${r.id} was saved and queued for ${r.developerEmail}. Email delivery is simulated until IT enables live email.`,
+      message: `Request #${r.id} was saved and is being emailed to the developer (${r.developerEmail}). Thank you!`,
     };
   } catch (e) {
     return fail(e);

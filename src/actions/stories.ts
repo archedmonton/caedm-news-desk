@@ -90,9 +90,9 @@ export async function assignFollowUpAction(_p: ActionState, fd: FormData): Promi
     const assigneeId = assigneeRaw ? id.parse(assigneeRaw) : null;
     const note = String(fd.get("note") ?? "");
     const followUpId = await assignFollowUp(storyId, { assigneeId, dueAt, note }, user.id);
-    const emailed = await notifyAssignment({ storyId, followUpId, assigneeId, actorId: user.id, dueAt, note });
+    const emailed = await notifyAssignment({ storyId, followUpId, assigneeId, actorId: user.id, dueAt, note }, undefined, undefined, "after-response");
     refresh(storyId);
-    return { ok: true, message: emailed ? "Follow-up assigned. The assignee was notified by email." : "Follow-up assigned." };
+    return { ok: true, message: emailed ? "Follow-up assigned. The assignee is being notified by email." : "Follow-up assigned." };
   } catch (e) {
     return fail(e);
   }

@@ -39,7 +39,7 @@ export default async function NotificationPage({ params }: { params: Promise<{ i
             <dl className="space-y-2 px-5 py-4 text-sm">
               <div className="flex justify-between gap-2">
                 <dt className="text-muted">Status</dt>
-                <dd className="font-medium capitalize">{n.status}</dd>
+                <dd className="font-medium capitalize">{n.status === "unknown" ? "Unconfirmed" : n.status}</dd>
               </div>
               <div className="flex justify-between gap-2">
                 <dt className="text-muted">Transport</dt>

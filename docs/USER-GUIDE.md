@@ -144,7 +144,16 @@ Delivery statuses:
 - **Simulated**: live email is off, so it was stored here only and nothing was sent.
 - **Failed**: the mail server couldn't be reached. It retries automatically after 1, 5, 15 and 60 minutes.
   Managers can also click **Retry now**.
+- **Sending**: being handed to the mail server now, usually within seconds.
+- **Unconfirmed**: the mail server received the message but never confirmed it, so it may or may not have
+  arrived. It is **not** resent automatically, to avoid a duplicate. Check with the recipient; a manager can then
+  click **Resend anyway**.
 - **Skipped**: deliberately not sent, for example a personal brief on a day with nothing new.
+
+When you click a button that sends email (**Send invitation**, **Send me a brief now**), the button finishes as
+soon as the message is saved. A status line underneath then follows the email until the mail server accepts it.
+If your connection drops, you'll see a message saying the result couldn't be confirmed: check the Email outbox.
+Trying again is safe; it won't send a second copy.
 
 Also on this page:
 

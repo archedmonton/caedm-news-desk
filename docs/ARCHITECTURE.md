@@ -255,6 +255,23 @@ overwrites them.
 | Manager | Member rights plus priority overrides, brief/alert tools, on-demand source checks |
 | Member | Read and review stories, follow-ups and notes, submit links |
 
+**Email delivery from buttons (2026-10-30, fix for 504s).** Server actions never talk to the mail server while
+the browser waits:
+
+1. The action saves the `notifications` row (`pending`) and replies.
+2. `dispatchNotification(id, "after-response")` sends it with Next's `after()`. That is Vercel `waitUntil`, not
+   fire-and-forget; pages that send email set `maxDuration = 60`.
+3. `deliverNotification` claims the row atomically (`pending|failed → sending`, `claimed_at`), so the request and a
+   scheduled refresh can't both send it.
+4. The SMTP transport tracks the protocol phase. A timeout after `DATA` means the server may already have queued
+   the message, so the status is `unknown` ("unconfirmed"), which is never auto-retried. Refusals and failures
+   before `DATA` are `failed` and retried with backoff.
+5. A row stuck in `sending` for 5 minutes, because the sender was killed, becomes `unknown`, not resent.
+6. Forms send a per-click `opId`. Invitations (`invite-op:<opId>`) and Send now (`brief-now:<user>:<opId>`) return
+   the first result for a repeated operation. Short guards also stop a second invitation to the same address
+   (2 min) or a second brief (1 min).
+7. The page polls `GET /api/notifications/:id` (same visibility rules as the outbox) to show the delivery status.
+
 **Emails go to individuals (2026-10-30).** There is no shared team mailbox: the `digestRecipient` and
 `alertRecipient` settings and the scheduled team brief (`runScheduledDigest`) were removed. Each person's brief and
 alerts go to their own sign-in email, chosen on `/notifications`. Alerts with nobody opted in are stored as

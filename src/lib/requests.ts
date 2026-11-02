@@ -7,7 +7,7 @@ import { first, getDb, type DB } from "./db/client";
 import { accessRequests, featureRequests, notifications, users, type Role } from "./db/schema";
 import { developerContact } from "./developer";
 import { env } from "./env";
-import { deliverNotification } from "./notify/deliver";
+import { dispatchNotification, type DeliveryMode } from "./notify/dispatch";
 import { accessRequestRecipients } from "./notify/recipients";
 import { renderAccessRequest, renderFeatureRequest } from "./notify/templates/emails";
 
@@ -27,6 +27,7 @@ export async function createAccessRequest(
   input: { name: string; email: string; department?: string; requestedRole?: Role; reason?: string },
   db: DB = getDb(),
   now = Date.now(),
+  delivery: DeliveryMode = "now",
 ): Promise<{ message: string; requestId: number | null }> {
   const email = input.email.trim().toLowerCase();
   const name = input.name.trim().slice(0, 100);
@@ -83,7 +84,7 @@ export async function createAccessRequest(
         })
         .returning({ id: notifications.id })
     )[0];
-    await deliverNotification(n.id, db, now);
+    await dispatchNotification(n.id, delivery, db, now);
   }
   return { message: ACCESS_REQUEST_RECEIVED, requestId: row.id };
 }
@@ -107,11 +108,18 @@ async function getPending(id: number, db: DB) {
 }
 
 /** Approval issues a normal single-use invitation, so the person still proves control of the mailbox. */
-export async function approveAccessRequest(id: number, role: Role, admin: { id: number; name: string }, db: DB = getDb(), now = Date.now()) {
+export async function approveAccessRequest(
+  id: number,
+  role: Role,
+  admin: { id: number; name: string },
+  db: DB = getDb(),
+  now = Date.now(),
+  delivery: DeliveryMode = "now",
+) {
   const r = await getPending(id, db);
   const existing = await first(db.select().from(users).where(eq(users.email, r.email)));
   if (existing?.status !== "active") {
-    await createInvitation({ email: r.email, name: r.name, role, invitedBy: admin }, db, now);
+    await createInvitation({ email: r.email, name: r.name, role, invitedBy: admin, delivery }, db, now);
   }
   await db
     .update(accessRequests)
@@ -148,6 +156,7 @@ export async function submitFeatureRequest(
   },
   db: DB = getDb(),
   now = Date.now(),
+  delivery: DeliveryMode = "now",
 ) {
   const title = input.title.trim().slice(0, 150);
   const description = input.description.trim().slice(0, 4000);
@@ -204,7 +213,7 @@ export async function submitFeatureRequest(
       .returning({ id: notifications.id })
   )[0];
   await db.update(featureRequests).set({ notificationId: n.id }).where(eq(featureRequests.id, row.id));
-  const delivered = await deliverNotification(n.id, db, now);
+  const delivered = await dispatchNotification(n.id, delivery, db, now);
   await audit("feature_request.submitted", "feature_request", row.id, input.user.id, { title }, db);
   return { id: row.id, deliveryStatus: delivered?.status ?? "pending", developerEmail: dev.email };
 }

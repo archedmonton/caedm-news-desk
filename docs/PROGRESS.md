@@ -67,7 +67,34 @@ are blocked on IT approval, as intended.
    data.
 5. Enable the CAEDM feed, then verify and activate further expansion sources (see `docs/SOURCES.md`).
 
-## Change request 2026-10-30 (3): emails go to the signed-in person; Notifications & alerts and Team management pages (✅ pushed)
+## Change request 2026-10-30 (4): email actions no longer time out; invitation email and page redesigned (✅ pushed)
+
+- **504 after a successful send:** fixed.
+  - Buttons now reply once the message is saved; the email is sent afterwards via `after()`, with an atomic claim,
+    SMTP phase tracking, an `unknown` ("unconfirmed") status that is never auto-resent, and stale-claim handling.
+  - Per-click `opId` makes retries and double clicks safe.
+  - The page shows live delivery status.
+  - Network failures show a clear message instead of an error page.
+- **Invisible "Accept invitation" text:** the button's colour was on the `<a>`, which Outlook desktop ignores, leaving
+  white text on white. All buttons are now table-cell ("bulletproof") buttons.
+- **Shared email layout:**
+  - redesigned: white, logo, gold rule, maroon title, Outlook conditional width;
+  - brief headings were bright gold on white (1.6:1) and are now dark gold;
+  - pills stay readable without backgrounds;
+  - the logo has a white background for dark-mode clients;
+  - brief and access-request links point to the new pages.
+- **Invitation page:** separate screens for valid, expired, already accepted, replaced and invalid links; role and
+  expiry shown; welcome banner after sign-up. Team management returns 404 to non-admins.
+- **Production links:** invitations refuse to send if `APP_URL` is localhost in production.
+- **Migration `0003_notification_claims`:** additive column plus a one-time data fix (see DEPLOYMENT.md).
+- **Previews:** `npm run previews:email` and `npm run previews:ui` write to `artifacts/` (git-ignored).
+- **Verified:**
+  - Vitest 125, including a real nodemailer client against a local fake SMTP server that keeps the message but
+    never confirms it.
+  - Playwright 29, including double click, dropped response and retry, link states, and permissions.
+  - Typecheck, lint and production build pass.
+
+## Change request 2026-10-30 (3): emails go to the signed-in person; Notifications & alerts and Team management pages (✅ pushed 17fdc54)
 
 - **No shared mailbox.** The "Recipient: communications@caedm.ca" settings are gone. Every brief and alert goes to the
   person's own sign-in email, which is shown as **Recipient** on the new page.

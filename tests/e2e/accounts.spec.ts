@@ -68,7 +68,7 @@ test("dashboard help, and a feature request emailed to the developer", async ({ 
   await dialog.getByLabel("Type").selectOption("feature");
   await dialog.getByLabel("Details").fill("A Friday summary of the week's covered stories would help reporting.");
   await dialog.getByRole("button", { name: "Send request" }).click();
-  await expect(dialog.getByText(/Request #\d+ was saved and queued for ruban\.peppin@caedm\.ca/)).toBeVisible();
+  await expect(dialog.getByText(/Request #\d+ was saved and is being emailed to the developer \(ruban\.peppin@caedm\.ca\)/)).toBeVisible();
   await dialog.getByRole("button", { name: "Close help" }).click();
 
   await page.goto("/outbox?kind=feature_request");
@@ -114,11 +114,12 @@ test("an invited person sets a password, changes it, and signs in with the new o
   await page.locator("#invite-name").fill("Casey Password");
   await page.locator("#invite-email").fill(email);
   await page.getByRole("button", { name: "Send invitation" }).click();
-  await expect(page.getByText(`Invitation sent to Casey Password (${email})`)).toBeVisible();
+  await expect(page.getByText(`Invitation created for Casey Password (${email}).`)).toBeVisible();
+  await expect(page.getByTestId("delivery-status")).toHaveAttribute("data-status", "simulated");
 
   await page.goto("/outbox?kind=invite");
   await page.getByTestId("outbox-row").filter({ hasText: email }).first().getByRole("link").first().click();
-  const href = await page.frameLocator("iframe").getByRole("link", { name: "Accept invitation and create password" }).getAttribute("href");
+  const href = await page.frameLocator("iframe").getByRole("link", { name: "Accept invitation", exact: true }).getAttribute("href");
   await page.context().clearCookies();
   await page.goto(new URL(href!).pathname);
   await page.getByLabel("Create a password").fill("first password 123");
@@ -162,7 +163,7 @@ test("an administrator can promote someone to administrator, never change themse
   await page.locator("#invite-name").fill("Drew Removed");
   await page.locator("#invite-email").fill(email);
   await page.getByRole("button", { name: "Send invitation" }).click();
-  await expect(page.getByText(`Invitation sent to Drew Removed (${email})`)).toBeVisible();
+  await expect(page.getByText(`Invitation created for Drew Removed (${email}).`)).toBeVisible();
 
   await page.reload();
   const me = page.getByRole("row").filter({ hasText: "dev.admin@caedm.ca" });

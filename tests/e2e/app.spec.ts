@@ -64,7 +64,7 @@ test("review workflow: mark reviewed, override priority, assign follow-up, add n
   await page.getByLabel("Due date").fill("2030-01-15");
   await page.getByLabel("Note (optional)").fill("Prepare a social post");
   await page.getByRole("button", { name: "Assign follow-up" }).click();
-  await expect(page.getByText(/Follow-up assigned\. The assignee was notified by email\./)).toBeVisible();
+  await expect(page.getByText(/Follow-up assigned\. The assignee is being notified by email\./)).toBeVisible();
   await expect(page.getByText("Prepare a social post")).toBeVisible();
 
   await page.getByLabel("New note").fill("Photographer confirmed");
@@ -163,14 +163,17 @@ test("settings save and staff invitation flow with password sign-in", async ({ p
 
   await page.getByLabel("Work email").fill("new.staff@caedm.ca");
   await page.getByRole("button", { name: "Send invitation" }).click();
-  await expect(page.getByText(/Invitation sent to New Staff \(new.staff@caedm.ca\)/)).toBeVisible();
+  await expect(page.getByText("Invitation created for New Staff (new.staff@caedm.ca).")).toBeVisible();
+  // The button finishes as soon as the invitation is saved; the email's own status follows.
+  await expect(page.getByRole("button", { name: "Send invitation" })).toBeEnabled();
+  await expect(page.getByTestId("delivery-status")).toContainText("Saved to the Email outbox");
 
   await page.goto("/outbox?kind=invite");
   await page.getByTestId("outbox-row").first().getByRole("link").click();
   const email = page.frameLocator("iframe");
   await expect(email.getByText("Dear New Staff,")).toBeVisible();
   await expect(email.getByText(/Member: Read and review news/)).toBeVisible();
-  const href = await email.getByRole("link", { name: "Accept invitation and create password" }).getAttribute("href");
+  const href = await email.getByRole("link", { name: "Accept invitation", exact: true }).getAttribute("href");
   expect(href).toMatch(/\/invite\//);
 
   await context.clearCookies();
@@ -186,7 +189,7 @@ test("settings save and staff invitation flow with password sign-in", async ({ p
   // Invitation is single-use.
   await page.getByRole("button", { name: "Sign out" }).first().click();
   await page.goto(new URL(href!).pathname);
-  await expect(page.getByText(/invalid, expired or already used/)).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "You're already set up" })).toBeVisible();
 
   await page.goto("/login");
   await page.locator("#email").fill("new.staff@caedm.ca");
@@ -240,7 +243,9 @@ test("personal brief: choose a time, send one now, and find help beside each fea
 
   await page.goto("/outbox");
   await page.getByRole("button", { name: "Send me a brief now", exact: true }).click();
-  await expect(page.getByText(/Your brief \(\d+ stor(y|ies)\) was saved to the outbox/)).toBeVisible();
+  await expect(page.getByText(/Your brief \(\d+ stor(y|ies)\) is on its way to dev.admin@caedm.ca/)).toBeVisible();
+  await expect(page.getByTestId("delivery-status")).toHaveAttribute("data-status", "simulated");
+  await expect(page.getByRole("button", { name: "Send me a brief now", exact: true })).toBeEnabled();
   await page.getByRole("link", { name: "Briefs", exact: true }).click();
   await expect(page.getByTestId("outbox-row").first()).toContainText("Your CAEDM News Brief");
   await expect(page.getByTestId("outbox-row").first()).toContainText("News brief");

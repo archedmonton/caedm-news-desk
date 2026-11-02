@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 import { audit } from "../audit";
 import { first, getDb, type DB } from "../db/client";
 import {
@@ -14,11 +14,12 @@ import {
   sessions,
   sources,
   users,
+  type NotificationStatus,
   type Role,
 } from "../db/schema";
-import { env } from "../env";
+import { env, publicAppUrl } from "../env";
 import { sha256 } from "../ingest/url";
-import { deliverNotification } from "../notify/deliver";
+import { dispatchNotification, type DeliveryMode } from "../notify/dispatch";
 import { notifyPasswordChanged } from "../notify/personal";
 import { renderInvite } from "../notify/templates/emails";
 import { isAllowedEmail } from "./access";
@@ -28,62 +29,150 @@ const INVITE_TTL_MS = 72 * 3600_000;
 const MAX_FAILED = 5;
 const LOCK_MS = 15 * 60_000;
 
+/** A second invitation to the same address this soon is almost always a double submit or a retried request. */
+export const INVITE_REPEAT_GUARD_MS = 2 * 60_000;
+
+/** Postgres unique violation (both drivers; Drizzle may wrap the driver error). */
+const isUniqueViolation = (e: unknown) => {
+  const err = e as { code?: string; cause?: { code?: string } };
+  return err?.code === "23505" || err?.cause?.code === "23505";
+};
+
+export type InvitationResult = {
+  userId: number;
+  email: string;
+  /** Null when this was a repeat of an operation that already ran (the token is never stored, only its hash). */
+  inviteUrl: string | null;
+  notificationId: number;
+  expiresAt: number | null;
+  duplicate: boolean;
+  deliveryStatus: NotificationStatus;
+};
+
+/**
+ * Creates (or replaces) an invitation and its email. `opId` is a per-click id from the form: repeating the same
+ * operation (double click, retry after a timeout) returns the first result instead of sending another email.
+ * Database work is one transaction; the email is sent afterwards (`delivery`), never inside the transaction.
+ */
 export async function createInvitation(
-  input: { email: string; name?: string; role: Role; invitedBy: { id: number; name: string } | null },
+  input: {
+    email: string;
+    name?: string;
+    role: Role;
+    invitedBy: { id: number; name: string } | null;
+    opId?: string;
+    delivery?: DeliveryMode;
+  },
   db: DB = getDb(),
   now = Date.now(),
-) {
+): Promise<InvitationResult> {
   const email = input.email.trim().toLowerCase();
   if (!isAllowedEmail(email)) throw new Error(`Only @${env().ALLOWED_EMAIL_DOMAIN} addresses can be invited.`);
-  const existing = await first(db.select().from(users).where(eq(users.email, email)));
-  if (existing?.status === "active") throw new Error("That person already has an active account.");
-  const role: Role = existing?.isDeveloper ? "admin" : input.role;
-  // The name personalises the email and pre-fills the sign-up form; the invitee can correct it there.
-  const name = input.name?.trim().slice(0, 100) || existing?.name || "";
-  let userId: number;
-  if (existing) {
-    userId = existing.id;
-    await db.update(users).set({ name, role, status: "invited", updatedAt: now }).where(eq(users.id, userId));
-  } else {
-    [{ id: userId }] = await db
-      .insert(users)
-      .values({ email, name, role, status: "invited", createdAt: now, updatedAt: now })
-      .returning({ id: users.id });
+  const baseUrl = publicAppUrl();
+  const dedupeKey = input.opId ? `invite-op:${input.opId}` : null;
+  const repeat = async () => {
+    const prior = dedupeKey ? await first(db.select().from(notifications).where(eq(notifications.dedupeKey, dedupeKey))) : undefined;
+    if (!prior) return null;
+    const userId = Number(prior.meta?.userId);
+    return { userId, email: prior.recipient, inviteUrl: null, notificationId: prior.id, expiresAt: null, duplicate: true, deliveryStatus: prior.status };
+  };
+  const already = await repeat();
+  if (already) return already;
+
+  const recent = await first(
+    db
+      .select({ id: notifications.id, createdAt: notifications.createdAt })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.kind, "invite"),
+          eq(notifications.recipient, email),
+          gt(notifications.createdAt, now - INVITE_REPEAT_GUARD_MS),
+          inArray(notifications.status, ["pending", "sending", "sent", "simulated", "unknown"]),
+        ),
+      ),
+  );
+  if (recent) {
+    throw new Error(
+      `An invitation was sent to ${email} less than 2 minutes ago. Check it in Email outbox → Invitations before sending another.`,
+    );
   }
-  // Revoke previous outstanding invitations for this address.
-  await db
-    .update(invitations)
-    .set({ revokedAt: now })
-    .where(and(eq(invitations.email, email), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
+
   const token = randomToken();
   const expiresAt = now + INVITE_TTL_MS;
-  await db.insert(invitations).values({ email, role, tokenHash: sha256(token), invitedBy: input.invitedBy?.id ?? null, expiresAt, createdAt: now });
-  const inviteUrl = `${env().APP_URL}/invite/${token}`;
-  const rendered = renderInvite({
-    name,
-    email,
-    inviteUrl,
-    role,
-    invitedBy: input.invitedBy?.name || "A CAEDM News Desk administrator",
-    expiresAt,
-    appUrl: env().APP_URL,
-    support: { name: env().DEVELOPER_NAME, email: env().DEVELOPER_EMAIL },
-  });
-  const [n] = await db
-    .insert(notifications)
-    .values({
-      kind: "invite",
-      dedupeKey: `invite:${sha256(token).slice(0, 24)}`,
-      recipient: email,
-      ...rendered,
-      status: "pending",
-      meta: { userId },
-      createdAt: now,
-    })
-    .returning({ id: notifications.id });
-  await deliverNotification(n.id, db, now);
-  await audit("user.invited", "user", userId, input.invitedBy?.id ?? null, { email, name, role }, db);
-  return { userId, inviteUrl, notificationId: n.id, expiresAt };
+  const inviteUrl = `${baseUrl}/invite/${token}`;
+  let created: { userId: number; notificationId: number };
+  try {
+    created = await db.transaction(async (tx) => {
+      const existing = await first(tx.select().from(users).where(eq(users.email, email)));
+      if (existing?.status === "active") throw new Error("That person already has an active account.");
+      const role: Role = existing?.isDeveloper ? "admin" : input.role;
+      // The name personalises the email and pre-fills the sign-up form; the invitee can correct it there.
+      const name = input.name?.trim().slice(0, 100) || existing?.name || "";
+      let userId: number;
+      if (existing) {
+        userId = existing.id;
+        await tx.update(users).set({ name, role, status: "invited", updatedAt: now }).where(eq(users.id, userId));
+      } else {
+        [{ id: userId }] = await tx
+          .insert(users)
+          .values({ email, name, role, status: "invited", createdAt: now, updatedAt: now })
+          .returning({ id: users.id });
+      }
+      // A new invitation replaces any outstanding one, so only the latest link works.
+      await tx
+        .update(invitations)
+        .set({ revokedAt: now })
+        .where(and(eq(invitations.email, email), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
+      await tx.insert(invitations).values({ email, role, tokenHash: sha256(token), invitedBy: input.invitedBy?.id ?? null, expiresAt, createdAt: now });
+      const rendered = renderInvite({
+        name,
+        email,
+        inviteUrl,
+        role,
+        invitedBy: input.invitedBy?.name || "A CAEDM News Desk administrator",
+        expiresAt,
+        appUrl: baseUrl,
+        support: { name: env().DEVELOPER_NAME, email: env().DEVELOPER_EMAIL },
+      });
+      const [n] = await tx
+        .insert(notifications)
+        .values({
+          kind: "invite",
+          dedupeKey: dedupeKey ?? `invite:${sha256(token).slice(0, 24)}`,
+          recipient: email,
+          ...rendered,
+          status: "pending",
+          meta: { userId, op: input.opId },
+          createdAt: now,
+        })
+        .returning({ id: notifications.id });
+      await audit("user.invited", "user", userId, input.invitedBy?.id ?? null, { email, name, role, op: input.opId }, tx);
+      return { userId, notificationId: n.id };
+    });
+  } catch (e) {
+    // The same operation committed concurrently (two identical requests in flight): report that one.
+    if (isUniqueViolation(e)) {
+      const concurrent = await repeat();
+      if (concurrent) return concurrent;
+    }
+    throw e;
+  }
+  const delivered = await dispatchNotification(created.notificationId, input.delivery ?? "now", db, now);
+  return { ...created, email, inviteUrl, expiresAt, duplicate: false, deliveryStatus: delivered?.status ?? "pending" };
+}
+
+/** Why an invitation link can or can't be used, for a clear message on the sign-up page. */
+export type InvitationState = "valid" | "expired" | "used" | "replaced" | "invalid";
+
+export async function inspectInvitation(token: string, db: DB = getDb(), now = Date.now()) {
+  const inv = /^[A-Za-z0-9_-]{16,200}$/.test(token)
+    ? await first(db.select().from(invitations).where(eq(invitations.tokenHash, sha256(token))))
+    : undefined;
+  if (!inv) return { state: "invalid" as const };
+  const state: InvitationState = inv.acceptedAt ? "used" : inv.revokedAt ? "replaced" : inv.expiresAt <= now ? "expired" : "valid";
+  const user = await first(db.select({ name: users.name, status: users.status }).from(users).where(eq(users.email, inv.email)));
+  return { state, invitation: inv, name: user?.name ?? "", accountActive: user?.status === "active" };
 }
 
 export async function findInvitation(token: string, db: DB = getDb(), now = Date.now()) {
@@ -241,6 +330,7 @@ export async function changePassword(
     currentPassword: string;
     newPassword: string;
     keepSessionHash?: string | null;
+    delivery?: DeliveryMode;
   },
   db: DB = getDb(),
   now = Date.now(),
@@ -273,6 +363,6 @@ export async function changePassword(
     return (await tx.delete(sessions).where(others).returning({ id: sessions.id })).length;
   });
   await audit("user.password_changed", "user", user.id, user.id, { otherSessionsEnded }, db);
-  await notifyPasswordChanged(user, otherSessionsEnded, db, now);
+  await notifyPasswordChanged(user, otherSessionsEnded, db, now, input.delivery);
   return { otherSessionsEnded };
 }

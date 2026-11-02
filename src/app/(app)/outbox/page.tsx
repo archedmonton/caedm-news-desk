@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { Eye, Inbox, Send } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { retryNotificationAction, runAlertsNowAction, sendBriefNowAction } from "@/actions/notifications";
+import { resendUnconfirmedAction, retryNotificationAction, runAlertsNowAction, sendBriefNowAction } from "@/actions/notifications";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { HelpHint } from "@/components/help";
 import { PageHeader } from "@/components/page-header";
@@ -28,7 +28,11 @@ const STATUS_STYLE: Record<string, string> = {
   pending: "border-amber-200 bg-amber-50 text-amber-800",
   failed: "border-p0/30 bg-p0-soft text-p0",
   skipped: "border-line bg-paper text-muted",
+  sending: "border-cobalt-100 bg-cobalt-50 text-cobalt-700",
+  unknown: "border-amber-300 bg-amber-50 text-amber-900",
 };
+
+const STATUS_LABEL: Record<string, string> = { unknown: "unconfirmed" };
 
 const KINDS = [
   { key: "", label: "All" },
@@ -188,10 +192,10 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
                         {n.subject}
                       </Link>
                       <div className="text-xs text-subtle">to {n.recipient || "no one (nobody has this turned on)"}</div>
-                      {n.lastError ? <div className="text-xs text-p0">{n.lastError}</div> : null}
+                      {n.lastError ? <div className={cn("text-xs", n.status === "unknown" ? "text-amber-800" : "text-p0")}>{n.lastError}</div> : null}
                     </td>
                     <td className="px-3 py-2.5">
-                      <Badge className={STATUS_STYLE[n.status]}>{n.status}</Badge>
+                      <Badge className={STATUS_STYLE[n.status]}>{STATUS_LABEL[n.status] ?? n.status}</Badge>
                       {n.status === "failed" && n.nextAttemptAt ? (
                         <div className="mt-1 text-xs text-subtle">retry {formatDateTime(n.nextAttemptAt)}</div>
                       ) : null}
@@ -203,6 +207,14 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
                           <input type="hidden" name="notificationId" value={n.id} />
                           <SubmitButton variant="link" size="xs" className="ml-2">
                             Retry now
+                          </SubmitButton>
+                        </form>
+                      ) : null}
+                      {admin && n.status === "unknown" ? (
+                        <form action={resendUnconfirmedAction} className="inline" title="Only after checking the recipient didn't get it">
+                          <input type="hidden" name="notificationId" value={n.id} />
+                          <SubmitButton variant="link" size="xs" className="ml-2">
+                            Resend anyway
                           </SubmitButton>
                         </form>
                       ) : null}

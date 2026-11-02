@@ -6,7 +6,7 @@ import { HelpTrigger } from "@/components/help";
 import { PageHeader } from "@/components/page-header";
 import { Badge, Card, CardHeader, Field, Input, Select } from "@/components/ui/primitives";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from "@/lib/auth/permissions";
-import { requireUser } from "@/lib/auth/session";
+import { requirePageUser } from "@/lib/auth/session";
 import { ROLES } from "@/lib/db/schema";
 import { env } from "@/lib/env";
 import { listStaff } from "@/lib/queries";
@@ -16,7 +16,7 @@ import { formatDateTime } from "@/lib/time";
 export const metadata: Metadata = { title: "Team management" };
 
 export default async function TeamPage() {
-  const user = await requireUser("manage_staff");
+  const user = await requirePageUser("manage_staff");
   const [staff, requests] = await Promise.all([listStaff(), listAccessRequests("all")]);
 
   return (
@@ -44,24 +44,26 @@ export default async function TeamPage() {
           <ActionForm
             action={inviteStaffAction}
             resetOnSuccess
-            className="flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-end"
+            className="border-b border-line px-5 py-4"
           >
-            <Field label="Full name" htmlFor="invite-name" className="flex-1">
-              <Input id="invite-name" name="name" required maxLength={100} placeholder="e.g. Maria Santos" autoComplete="off" />
-            </Field>
-            <Field label="Work email" htmlFor="invite-email" className="flex-1">
-              <Input id="invite-email" name="email" type="email" required placeholder={`name@${env().ALLOWED_EMAIL_DOMAIN}`} autoComplete="off" />
-            </Field>
-            <Field label="Role" htmlFor="invite-role">
-              <Select id="invite-role" name="role" defaultValue="member">
-                {[...ROLES].reverse().map((r) => (
-                  <option key={r} value={r}>
-                    {ROLE_LABELS[r]}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <SubmitButton pendingText="Inviting…">Send invitation</SubmitButton>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <Field label="Full name" htmlFor="invite-name" className="flex-1">
+                <Input id="invite-name" name="name" required maxLength={100} placeholder="e.g. Maria Santos" autoComplete="off" />
+              </Field>
+              <Field label="Work email" htmlFor="invite-email" className="flex-1">
+                <Input id="invite-email" name="email" type="email" required placeholder={`name@${env().ALLOWED_EMAIL_DOMAIN}`} autoComplete="off" />
+              </Field>
+              <Field label="Role" htmlFor="invite-role">
+                <Select id="invite-role" name="role" defaultValue="member">
+                  {[...ROLES].reverse().map((r) => (
+                    <option key={r} value={r}>
+                      {ROLE_LABELS[r]}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <SubmitButton pendingText="Inviting…">Send invitation</SubmitButton>
+            </div>
           </ActionForm>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">

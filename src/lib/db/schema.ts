@@ -238,7 +238,11 @@ export const followUpNotes = pgTable(
 
 export const NOTIFICATION_KINDS = ["digest", "brief", "alert", "invite", "test", "assignment", "access_request", "feature_request", "security"] as const;
 
-export const NOTIFICATION_STATUSES = ["pending", "simulated", "sent", "failed", "skipped"] as const;
+/**
+ * `sending`: claimed by one worker, in flight. `unknown`: the mail server may have accepted the message but never
+ * confirmed it, so it is never resent automatically (that could deliver a duplicate).
+ */
+export const NOTIFICATION_STATUSES = ["pending", "sending", "simulated", "sent", "failed", "unknown", "skipped"] as const;
 export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number];
 
 export const notifications = pgTable(
@@ -259,6 +263,8 @@ export const notifications = pgTable(
     meta: jsonb("meta").$type<Record<string, unknown>>(),
     createdAt: ts("created_at").notNull().default(now),
     sentAt: ts("sent_at"),
+    /** When a worker claimed the row for sending; a stale claim means the sender died mid-send. */
+    claimedAt: ts("claimed_at"),
   },
   (t) => [index("notifications_kind_idx").on(t.kind, t.createdAt), index("notifications_status_idx").on(t.status)],
 );

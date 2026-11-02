@@ -6,3 +6,4 @@ if (!dir.includes("e2e")) throw new Error(`Refusing to reset non-e2e database ${
 fs.rmSync(dir, { recursive: true, force: true });
 fs.rmSync(`${dir}.lock`, { force: true });
 execSync("npx tsx scripts/db-setup.ts --sample --defer-checks", { stdio: "inherit", env: { ...process.env, NODE_ENV: "development" } });
+execSync("npx tsx tests/e2e/seed-fixtures.ts", { stdio: "inherit", env: { ...process.env, NODE_ENV: "development" } });

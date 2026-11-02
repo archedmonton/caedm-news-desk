@@ -87,9 +87,9 @@ describe("roles, invitations and deleting accounts", () => {
     const n = (await first(db.select().from(notifications).where(eq(notifications.kind, "invite"))))!;
     expect(n.subject).toBe("Your invitation to join CAEDM News Desk");
     expect(n.html).toContain("Dear Maria Santos,");
-    expect(n.html).toContain("Accept invitation and create password");
+    expect(n.html).toContain("Accept invitation");
     expect(n.html).toContain("Manager: ");
-    expect(n.html).toContain("caedm-logo.png");
+    expect(n.html).toContain("caedm-logo-email.png");
     expect(n.html).not.toContain("publishers' own descriptions");
     expect(n.text).toContain("Ruban Peppin has invited you");
   });

@@ -120,6 +120,16 @@ npm run scheduler:sql
 
 If you change `CRON_SECRET`, update it in Vercel, redeploy, and run the SQL again.
 
+## Email delivery behaviour (since migration 0003)
+
+Buttons that send email reply as soon as the message is saved; the email is sent straight after, within the same
+serverless function (60 s limit). Each attempt writes one JSON log line, `{"evt":"email.delivery",…}`, with the
+outbox id, kind, status, attempt and duration, which you can filter in **Vercel → Logs**. Recipients, tokens and
+credentials are never logged.
+
+Migration `0003_notification_claims` adds `notifications.claimed_at` and, once, marks old `pending` rows and
+timeout failures as `unknown`, so the first refresh after deploy can't resend emails that were already delivered.
+
 ## Production readiness checklist
 
 - [ ] Vercel non-profit/in-house use confirmed in writing by Vercel

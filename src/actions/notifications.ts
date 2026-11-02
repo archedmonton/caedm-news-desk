@@ -6,21 +6,26 @@ import type { ActionState } from "@/components/forms";
 import { audit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth/session";
 import { processAlerts } from "@/lib/notify/alerts";
-import { deliverNotification } from "@/lib/notify/deliver";
+import { requeueUnconfirmed } from "@/lib/notify/deliver";
 import { sendBriefNow } from "@/lib/notify/digest";
+import { dispatchNotification } from "@/lib/notify/dispatch";
+import { parseOpId } from "@/lib/op-id";
 
 const fail = (e: unknown): ActionState => ({ error: (e as Error).message });
 
-export async function sendBriefNowAction(_p: ActionState): Promise<ActionState> {
+/**
+ * The brief is built and saved before replying; the email itself is sent after the response (see
+ * dispatchNotification), and the page follows its delivery status.
+ */
+export async function sendBriefNowAction(_p: ActionState, fd?: FormData): Promise<ActionState> {
   try {
     const user = await requireUser("manage_own_account");
-    const r = await sendBriefNow(user.id);
-    await audit("notification.brief_sent_now", "notification", r.notificationId, user.id, { storyCount: r.storyCount });
+    const opId = fd ? parseOpId(fd) : undefined;
+    const r = await sendBriefNow(user.id, undefined, undefined, { opId, delivery: "after-response" });
+    if (!r.duplicate) await audit("notification.brief_sent_now", "notification", r.notificationId, user.id, { storyCount: r.storyCount, op: opId });
     revalidatePath("/outbox");
     const stories = `${r.storyCount} ${r.storyCount === 1 ? "story" : "stories"}`;
-    if (r.status === "sent") return { ok: true, message: `Your brief (${stories}) was emailed to ${r.recipient}.` };
-    if (r.status === "simulated") return { ok: true, message: `Your brief (${stories}) was saved to the outbox. Email delivery is simulated, so nothing was sent.` };
-    return { error: `Your brief was saved but couldn't be emailed yet (${r.error ?? "delivery failed"}). It will be retried automatically.` };
+    return { ok: true, message: `Your brief (${stories}) is on its way to ${r.recipient}.`, notificationId: r.notificationId };
   } catch (e) {
     return fail(e);
   }
@@ -44,7 +49,17 @@ export async function runAlertsNowAction(_p: ActionState): Promise<ActionState> 
 export async function retryNotificationAction(fd: FormData) {
   const user = await requireUser("send_test_notifications");
   const nid = z.coerce.number().int().positive().parse(fd.get("notificationId"));
-  await deliverNotification(nid);
+  await dispatchNotification(nid, "after-response");
   await audit("notification.retried", "notification", nid, user.id);
+  revalidatePath("/outbox");
+}
+
+/** For a message whose delivery was never confirmed: the person checked with the recipient and chose to resend. */
+export async function resendUnconfirmedAction(fd: FormData) {
+  const user = await requireUser("send_test_notifications");
+  const nid = z.coerce.number().int().positive().parse(fd.get("notificationId"));
+  await requeueUnconfirmed(nid);
+  await dispatchNotification(nid, "after-response");
+  await audit("notification.resent_unconfirmed", "notification", nid, user.id);
   revalidatePath("/outbox");
 }

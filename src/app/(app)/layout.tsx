@@ -7,6 +7,8 @@ import { latestStoryId, shellCounts } from "@/lib/queries";
 import { getTickState } from "@/lib/tick";
 
 export const dynamic = "force-dynamic";
+/** Pages here send email from buttons; delivery runs after the response, within this limit (Vercel Hobby max). */
+export const maxDuration = 60;
 
 export default async function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();

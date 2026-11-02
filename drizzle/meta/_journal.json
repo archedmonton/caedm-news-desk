@@ -22,6 +22,13 @@
       "when": 1793388892446,
       "tag": "0002_remove_viewer_role",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793396489819,
+      "tag": "0003_notification_claims",
+      "breakpoints": true
     }
   ]
 }

@@ -82,3 +82,37 @@ test("invitation journey and email actions", async ({ page, browser }) => {
   await expect(guest.getByText("Welcome to CAEDM News Desk. Your account is ready.")).toBeVisible();
   await shot(guest, "invite-success");
 });
+
+test("contextual help", async ({ page, browser }) => {
+  await page.setViewportSize(DESKTOP);
+  await devSignIn(page);
+  const helpShot = async (name: string) => {
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.screenshot({ path: `${OUT}/${name}.png` });
+    await page.getByRole("dialog").getByRole("button", { name: "Close help" }).click();
+  };
+
+  await page.goto("/news");
+  await page.getByTestId("story-row").first().getByRole("link").first().click();
+  await page.waitForLoadState("networkidle");
+  await shot(page, "help-story-page-hints");
+  await page.getByRole("button", { name: "Help: Why a story got its priority" }).click();
+  await helpShot("help-priority-reason");
+
+  await page.goto("/team");
+  await page.waitForLoadState("networkidle");
+  await page.getByRole("button", { name: "Help: Changing someone's access" }).click();
+  await helpShot("help-staff-actions");
+
+  await page.goto("/sources/new");
+  await page.waitForLoadState("networkidle");
+  await page.getByRole("button", { name: "Help: Finding and testing a feed" }).click();
+  await helpShot("help-find-feed");
+
+  const mobile = await (await browser.newContext({ viewport: MOBILE, deviceScaleFactor: 2 })).newPage();
+  await mobile.goto("/login");
+  await mobile.waitForLoadState("networkidle");
+  await mobile.getByRole("button", { name: "Forgot your password?" }).click();
+  await expect(mobile.getByRole("dialog")).toBeVisible();
+  await mobile.screenshot({ path: `${OUT}/help-forgot-password-mobile.png` });
+});

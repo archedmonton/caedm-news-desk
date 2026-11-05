@@ -4,6 +4,7 @@ import Link from "next/link";
 import { setStatusAction } from "@/actions/stories";
 import { PriorityBadge, StatusBadge } from "@/components/badges";
 import { SubmitButton } from "@/components/forms";
+import { HelpHint } from "@/components/help";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/story-row";
 import { Card } from "@/components/ui/primitives";
@@ -44,18 +45,21 @@ export default async function FollowUpsPage({ searchParams }: { searchParams: Pr
   return (
     <>
       <PageHeader title="Follow-ups" description="Stories Communications is acting on. Assign, set due dates and add notes from each story's page." />
-      <nav aria-label="Follow-up views" className="mb-4 flex flex-wrap gap-1 rounded-lg border border-line bg-surface p-1 text-sm sm:w-fit">
-        {VIEWS.map((v) => (
-          <Link
-            key={v.key}
-            href={v.key ? `/follow-ups?view=${v.key}` : "/follow-ups"}
-            aria-current={view === v.key ? "page" : undefined}
-            className={cn("rounded-md px-3 py-1.5 text-muted hover:text-ink", view === v.key && "bg-maroon-700 text-white hover:text-white")}
-          >
-            {v.label}
-          </Link>
-        ))}
-      </nav>
+      <div className="mb-4 flex items-center gap-1">
+        <nav aria-label="Follow-up views" className="flex min-w-0 flex-wrap gap-1 rounded-lg border border-line bg-surface p-1 text-sm">
+          {VIEWS.map((v) => (
+            <Link
+              key={v.key}
+              href={v.key ? `/follow-ups?view=${v.key}` : "/follow-ups"}
+              aria-current={view === v.key ? "page" : undefined}
+              className={cn("rounded-md px-3 py-1.5 text-muted hover:text-ink", view === v.key && "bg-maroon-700 text-white hover:text-white")}
+            >
+              {v.label}
+            </Link>
+          ))}
+        </nav>
+        <HelpHint topic="follow-up" label="Assigning a follow-up" />
+      </div>
       <Card>
         {rows.length === 0 ? (
           <EmptyState title="Nothing here" icon={<ClipboardList className="size-6" />}>

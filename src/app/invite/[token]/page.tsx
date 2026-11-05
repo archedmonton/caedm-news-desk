@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { acceptInviteAction } from "@/actions/auth";
 import { ActionForm, SubmitButton } from "@/components/forms";
+import { HelpProvider, HelpTrigger } from "@/components/help";
 import { Button, Card, Field, Input } from "@/components/ui/primitives";
 import { productionAccess } from "@/lib/auth/access";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from "@/lib/auth/permissions";
@@ -18,16 +19,21 @@ export const maxDuration = 60;
 
 function Shell({ heading, intro, children }: { heading: string; intro?: string; children: React.ReactNode }) {
   return (
-    <div className="relative flex min-h-dvh items-center justify-center bg-paper px-4 py-12">
-      <div aria-hidden className="brand-stripe absolute inset-x-0 top-0 h-1.5" />
-      <main className="w-full max-w-md">
-        <Image src="/caedm-logo.png" alt="The Catholic Archdiocese of Edmonton" width={310} height={144} priority className="mx-auto h-auto w-[190px]" />
-        <p className="mt-3 text-center text-xs font-semibold uppercase tracking-wider text-muted">News Desk</p>
-        <h1 className="mt-2 text-center font-serif text-2xl font-semibold text-maroon-700">{heading}</h1>
-        {intro ? <p className="mt-1 text-center text-sm text-muted">{intro}</p> : null}
-        <Card className="mt-6 p-6">{children}</Card>
-      </main>
-    </div>
+    <HelpProvider developer={developerContact()} signedIn={false} context="invite">
+      <div className="relative flex min-h-dvh items-center justify-center bg-paper px-4 py-12">
+        <div aria-hidden className="brand-stripe absolute inset-x-0 top-0 h-1.5" />
+        <div className="absolute right-4 top-4">
+          <HelpTrigger variant="ghost" />
+        </div>
+        <main className="w-full max-w-md">
+          <Image src="/caedm-logo.png" alt="The Catholic Archdiocese of Edmonton" width={310} height={144} priority className="mx-auto h-auto w-[190px]" />
+          <p className="mt-3 text-center text-xs font-semibold uppercase tracking-wider text-muted">News Desk</p>
+          <h1 className="mt-2 text-center font-serif text-2xl font-semibold text-maroon-700">{heading}</h1>
+          {intro ? <p className="mt-1 text-center text-sm text-muted">{intro}</p> : null}
+          <Card className="mt-6 p-6">{children}</Card>
+        </main>
+      </div>
+    </HelpProvider>
   );
 }
 
@@ -92,7 +98,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
       <Shell heading="You're already set up">
         <Problem icon={<ShieldCheck className="size-5" />} title="This invitation has already been accepted" signIn>
           Sign in with <strong className="text-ink">{inv.email}</strong> and the password you created. Forgotten it? Ask an administrator to
-          send a new invitation.
+          reset it for you.
         </Problem>
       </Shell>
     );

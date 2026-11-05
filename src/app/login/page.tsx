@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { devLoginAction, loginAction } from "@/actions/auth";
 import { requestAccessAction } from "@/actions/requests";
 import { ActionForm, SubmitButton } from "@/components/forms";
-import { HelpProvider, HelpTrigger } from "@/components/help";
+import { HelpHint, HelpProvider, HelpTrigger } from "@/components/help";
 import { Card, Field, Input, Select, Textarea } from "@/components/ui/primitives";
 import { devLoginAllowed, productionAccess } from "@/lib/auth/access";
 import { ROLE_LABELS } from "@/lib/auth/permissions";
@@ -82,6 +82,9 @@ export default async function LoginPage() {
                 <Field label="Password" htmlFor="password">
                   <Input id="password" name="password" type="password" autoComplete="current-password" required />
                 </Field>
+                <HelpHint topic="forgot-password" label="Forgot your password?">
+                  Forgot your password?
+                </HelpHint>
                 <SubmitButton className="w-full" pendingText="Signing in…">
                   Sign in
                 </SubmitButton>

@@ -17,7 +17,7 @@ test("an administrator adds a source: find feed, test, save", async ({ page }) =
   await page.getByLabel("Website").fill(`${FIXTURE}/`);
   await page.getByRole("button", { name: "Find feed" }).click();
   await expect(page.getByLabel(/News feed/)).toHaveValue(`${FIXTURE}/feed/`);
-  await page.getByRole("button", { name: "Test" }).click();
+  await page.getByRole("button", { name: "Test", exact: true }).click();
   await expect(page.getByText(/Works: 2 items found/)).toBeVisible();
   await expect(page.getByText("Fixture partner opens new Edmonton family centre")).toBeVisible();
   await page.getByRole("button", { name: "Add source" }).click();

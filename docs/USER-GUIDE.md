@@ -195,8 +195,13 @@ Everyone can set up their own personal brief and use **Send me a brief now**.
 
 ## Getting help in the app
 
-- **Help** (top of each page) explains the page you're on.
-- **The small ? icons** beside a feature open Help at that feature's explanation.
+- **Help** (top of every page, including sign-in and the invitation page) explains the page you're on.
+- **The small ? icons** beside a feature open Help at that feature's explanation: for example, why a story got its
+  priority, the story workflow, assigning a follow-up, finding a feed, the priority rules, and what each email
+  status means.
+- **Forgot your password?** on the sign-in page explains what to do. There is no self-service reset: an
+  administrator disables your account in Team management and then sends you a new invitation, which lets you create
+  a new password. Your stories, notes and follow-ups are kept.
 - **Help & support** (in the sidebar) has the developer's contact details.
 - **Request a feature** (in the sidebar) sends your idea or problem report straight to the developer.
 

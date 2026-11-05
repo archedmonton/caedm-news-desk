@@ -47,16 +47,26 @@ export function CardHeader({
   title,
   description,
   action,
+  help,
 }: {
   className?: string;
   title: React.ReactNode;
   description?: React.ReactNode;
   action?: React.ReactNode;
+  /** A help icon shown beside the title, outside the heading so it doesn't become part of its name. */
+  help?: React.ReactNode;
 }) {
   return (
     <div className={cn("flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4", className)}>
       <div className="min-w-0">
-        <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
+        {help ? (
+          <div className="-my-0.5 flex items-center gap-1">
+            <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
+            {help}
+          </div>
+        ) : (
+          <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
+        )}
         {description ? <p className="mt-0.5 text-[13px] text-muted">{description}</p> : null}
       </div>
       {action}

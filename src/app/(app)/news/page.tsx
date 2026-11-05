@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { submitLinkAction } from "@/actions/stories";
 import { ActionForm, SubmitButton } from "@/components/forms";
+import { HelpHint } from "@/components/help";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, StoryRow } from "@/components/story-row";
 import { Button, Card, Field, Input, Select } from "@/components/ui/primitives";
@@ -96,7 +97,8 @@ export default async function NewsPage({ searchParams }: { searchParams: SP }) {
             <input type="checkbox" name="review" value="1" defaultChecked={f.review === "1"} className="size-4 accent-maroon-700" />
             Needs review only
           </label>
-          <div className="flex gap-2 lg:col-span-3 lg:justify-end">
+          <div className="flex items-center gap-2 lg:col-span-3 lg:justify-end">
+            <HelpHint topic="news-filters" label="Searching and filtering" />
             <Button type="submit">Apply</Button>
             {hasFilters ? (
               <Button asChild variant="outline">
@@ -147,7 +149,10 @@ export default async function NewsPage({ searchParams }: { searchParams: SP }) {
 
       {can(user.role, "submit_links") ? (
         <Card className="mt-8 p-5">
-          <h2 className="text-[15px] font-semibold">Submit a link</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-[15px] font-semibold">Submit a link</h2>
+            <HelpHint topic="submit-link" label="Submitting a link" />
+          </div>
           <p className="mt-0.5 text-[13px] text-muted">
             For news from sources that aren&apos;t monitored automatically. Submitted links are marked <strong>unverified</strong>. Only the
             publisher&apos;s own metadata is read, and only where robots.txt allows.

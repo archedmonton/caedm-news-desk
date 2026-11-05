@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EmailFrame } from "@/components/email-frame";
 import { PageHeader } from "@/components/page-header";
+import { HelpHint } from "@/components/help";
 import { Card, CardHeader } from "@/components/ui/primitives";
 import { can } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/session";
@@ -35,7 +36,7 @@ export default async function NotificationPage({ params }: { params: Promise<{ i
         </div>
         <div className="space-y-6">
           <Card>
-            <CardHeader title="Delivery" />
+            <CardHeader title="Delivery" help={<HelpHint topic="email-status" label="What the delivery statuses mean" />} />
             <dl className="space-y-2 px-5 py-4 text-sm">
               <div className="flex justify-between gap-2">
                 <dt className="text-muted">Status</dt>

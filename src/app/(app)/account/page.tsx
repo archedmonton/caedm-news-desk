@@ -5,7 +5,7 @@ import Link from "next/link";
 import { changePasswordAction } from "@/actions/auth";
 import { updateProfileAction } from "@/actions/requests";
 import { ActionForm, SubmitButton } from "@/components/forms";
-import { HelpTrigger } from "@/components/help";
+import { HelpHint } from "@/components/help";
 import { PageHeader } from "@/components/page-header";
 import { Button, Card, CardHeader, Field, Input } from "@/components/ui/primitives";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
@@ -28,7 +28,7 @@ export default async function AccountPage() {
 
   return (
     <>
-      <PageHeader title="My account" description="Your profile, role and password." actions={<HelpTrigger />} />
+      <PageHeader title="My account" description="Your profile, role and password." />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <ActionForm action={updateProfileAction}>
@@ -68,7 +68,7 @@ export default async function AccountPage() {
 
         <div className="space-y-6 self-start">
           <Card>
-            <CardHeader title="Access" />
+            <CardHeader title="Access" help={<HelpHint topic="roles" label="Roles" />} />
           <dl className="space-y-3 px-5 py-4 text-sm">
             <div>
               <dt className="text-xs text-subtle">Role</dt>
@@ -87,7 +87,11 @@ export default async function AccountPage() {
           </Card>
 
           <Card id="password">
-            <CardHeader title="Password" description="Changing it signs you out on your other devices." />
+            <CardHeader
+              title="Password"
+              description="Changing it signs you out on your other devices."
+              help={<HelpHint topic="password" label="Your password" />}
+            />
             {me.passwordHash ? (
               <ActionForm action={changePasswordAction} resetOnSuccess className="space-y-4 px-5 py-4">
                 {/* Lets password managers attach the new password to the right account. */}

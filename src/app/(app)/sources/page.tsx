@@ -4,6 +4,7 @@ import Link from "next/link";
 import { checkSourceNowAction, toggleSourceAction } from "@/actions/admin";
 import { HealthBadge, sourceHealth } from "@/components/badges";
 import { ActionForm, SubmitButton } from "@/components/forms";
+import { HelpHint } from "@/components/help";
 import { PageHeader } from "@/components/page-header";
 import { Button, Card, CardHeader } from "@/components/ui/primitives";
 import { can } from "@/lib/auth/permissions";
@@ -145,7 +146,11 @@ export default async function SourcesPage({ searchParams }: { searchParams: Prom
       </div>
 
       <Card className="mt-8">
-        <CardHeader title="Recent checks" description="Most recent 25 source checks" />
+        <CardHeader
+          title="Recent checks"
+          description="Most recent 25 source checks"
+          help={<HelpHint topic="source-health" label="Source health and checks" />}
+        />
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-line text-xs text-subtle">
@@ -191,6 +196,7 @@ export default async function SourcesPage({ searchParams }: { searchParams: Prom
       <Card className="mt-8">
         <CardHeader
           title="Expansion registry"
+          help={<HelpHint topic="expansion-registry" label="Expansion registry" />}
           description={
             isAdmin
               ? "Planned sources. Choose Set up, add the organization's RSS/Atom feed and test it; it is monitored once verified."

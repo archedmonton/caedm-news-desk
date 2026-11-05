@@ -12,6 +12,7 @@ import {
 } from "@/actions/stories";
 import { CategoryBadge, PriorityBadge, SampleBadge, StatusBadge, VerificationBadge } from "@/components/badges";
 import { ActionForm, SubmitButton } from "@/components/forms";
+import { HelpHint, HelpTrigger } from "@/components/help";
 import { StoryRow } from "@/components/story-row";
 import { Button, Card, CardHeader, Field, Input, Select, Textarea } from "@/components/ui/primitives";
 import { can } from "@/lib/auth/permissions";
@@ -55,9 +56,12 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
 
   return (
     <>
-      <Link href="/news" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
-        <ArrowLeft className="size-4" /> News Feed
-      </Link>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <Link href="/news" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
+          <ArrowLeft className="size-4" /> News Feed
+        </Link>
+        <HelpTrigger />
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
@@ -78,6 +82,7 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
                   {s.verificationStatus === "unverified" ? "It did not come from the organization's own official channel. " : ""}
                   Treat claims as reported by <strong>{d.sourceName}</strong>, not as established fact, and verify before any external use.
                 </p>
+                <HelpHint topic="verification" label="Needs review and Unverified" className="-my-0.5 ml-auto text-orange-800" />
               </div>
             ) : null}
             {s.description ? (
@@ -121,7 +126,11 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
           </Card>
 
           <Card>
-            <CardHeader title="Why this priority" description={`Score ${s.priorityScore}${s.priorityOverridden ? " · manually overridden" : ""}`} />
+            <CardHeader
+              title="Why this priority"
+              description={`Score ${s.priorityScore}${s.priorityOverridden ? " · manually overridden" : ""}`}
+              help={<HelpHint topic="priority-reason" label="Why a story got its priority" />}
+            />
             <ul className="list-disc space-y-1 px-9 py-4 text-sm text-ink marker:text-subtle">
               {s.priorityReason.split("; ").map((r, i) => (
                 <li key={i}>{r}</li>
@@ -137,6 +146,7 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
                   ? `Assigned to ${d.followUp?.assignee || d.followUp?.assigneeEmail || "nobody"}${fu.dueAt ? ` · due ${formatDateTime(fu.dueAt)}` : ""}`
                   : "Not assigned"
               }
+              help={<HelpHint topic="follow-up" label="Assigning a follow-up" />}
             />
             <div className="space-y-6 px-5 py-4">
               {canReview ? (
@@ -222,7 +232,11 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
         <div className="space-y-6">
           {canReview ? (
             <Card>
-              <CardHeader title="Workflow" description="New → Reviewing → Assigned → Covered / Archived" />
+              <CardHeader
+                title="Workflow"
+                description="New → Reviewing → Assigned → Covered / Archived"
+                help={<HelpHint topic="workflow" label="Story workflow" />}
+              />
               <div className="space-y-2 px-5 py-4">
                 <ActionForm action={setStatusWithResultAction} className="flex flex-wrap gap-2">
                   <input type="hidden" name="storyId" value={s.id} />
@@ -247,7 +261,7 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
 
           {canPrioritize ? (
             <Card>
-              <CardHeader title="Change priority" />
+              <CardHeader title="Change priority" help={<HelpHint topic="change-priority" label="Changing a story's priority" />} />
               <div className="px-5 py-4">
                 <ActionForm action={overridePriorityAction} className="space-y-3">
                   <input type="hidden" name="storyId" value={s.id} />

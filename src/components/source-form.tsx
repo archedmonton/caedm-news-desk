@@ -4,6 +4,7 @@ import { CheckCircle2, Loader2, Search, XCircle } from "lucide-react";
 import * as React from "react";
 import { deleteSourceAction, discoverFeedsAction, saveSourceAction, testFeedAction } from "@/actions/sources";
 import { ActionForm, SubmitButton } from "@/components/forms";
+import { HelpHint } from "@/components/help";
 import { Button, Checkbox, Field, Input, Select, Textarea } from "@/components/ui/primitives";
 import { CATEGORY_LABELS, GEO_LABELS } from "@/lib/utils";
 
@@ -108,6 +109,7 @@ export function SourceForm({
               <Button type="button" variant="outline" onClick={runTest} disabled={busy || !feedUrl}>
                 {busy ? <Loader2 className="animate-spin" /> : null} Test
               </Button>
+              <HelpHint topic="find-feed" label="Finding and testing a feed" className="self-center" />
             </div>
           </Field>
           {discoverError ? <p className="mt-2 text-sm text-p1">{discoverError}</p> : null}
@@ -173,7 +175,13 @@ export function SourceForm({
               ))}
             </Select>
           </Field>
-          <Field label="Importance" htmlFor="importance" hint="Raises priority a little; never makes a story urgent on its own.">
+          <Field label="Importance" htmlFor="importance" hint={
+              <>
+                Raises priority a little; never makes a story urgent on its own.{" "}
+                <HelpHint topic="source-fields" label="Source details" className="size-5" />
+              </>
+            }
+          >
             <Select id="importance" name="importance" defaultValue={String(initial.importance)}>
               {[5, 4, 3, 2, 1].map((n) => (
                 <option key={n} value={n}>

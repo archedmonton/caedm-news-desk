@@ -25,9 +25,9 @@ import { renderInvite } from "../notify/templates/emails";
 import { isAllowedEmail } from "./access";
 import { hashPassword, passwordProblem, randomToken, verifyPassword } from "./password";
 
-const INVITE_TTL_MS = 72 * 3600_000;
-const MAX_FAILED = 5;
-const LOCK_MS = 15 * 60_000;
+export const INVITE_TTL_MS = 72 * 3600_000;
+export const MAX_FAILED = 5;
+export const LOCK_MS = 15 * 60_000;
 
 /** A second invitation to the same address this soon is almost always a double submit or a retried request. */
 export const INVITE_REPEAT_GUARD_MS = 2 * 60_000;
@@ -105,7 +105,9 @@ export async function createInvitation(
   try {
     created = await db.transaction(async (tx) => {
       const existing = await first(tx.select().from(users).where(eq(users.email, email)));
-      if (existing?.status === "active") throw new Error("That person already has an active account.");
+      if (existing?.status === "active") throw new Error(
+          "That person already has an active account. To reset a forgotten password, disable their account first, then send the invitation again.",
+        );
       const role: Role = existing?.isDeveloper ? "admin" : input.role;
       // The name personalises the email and pre-fills the sign-up form; the invitee can correct it there.
       const name = input.name?.trim().slice(0, 100) || existing?.name || "";

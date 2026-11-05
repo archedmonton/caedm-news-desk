@@ -67,6 +67,29 @@ are blocked on IT approval, as intended.
    data.
 5. Enable the CAEDM feed, then verify and activate further expansion sources (see `docs/SOURCES.md`).
 
+## Change request 2026-11-05: contextual help across the app (✅ pushed)
+
+- **Help on every page:** `PageHeader` now includes the Help button, so every authenticated page has one. Sign-in
+  and the invitation page have their own help too.
+- **Page help:** pages that fell back to generic help now have their own: Story, Adding or Editing a source, Email
+  message and Brief preview.
+- **? hints:** about 20 new hints at the points where people stall: priority reasons, workflow, follow-ups,
+  verification, News Feed filters, submitting a link, source health, the expansion registry, finding and testing a
+  feed, source details, email mode, refresh, priority rules, inviting, staff actions, access requests, the alert dry
+  run, delivery status, roles and password.
+- **Text link for forgotten passwords:** a "Forgot your password?" link on sign-in opens help.
+- **Code structure:** help content lives in `src/components/help-content.tsx`. `CardHeader` has a `help` slot,
+  which keeps the icon out of the heading's accessible name.
+- **Forgotten passwords:** inviting an active account is refused, so the old advice ("ask for a new invitation")
+  didn't work. The error and the help now say to disable the account first, then re-invite. A re-invited person who
+  has signed in before shows **Delete**, not **Cancel invite**, because removing them deletes a real account.
+- **Tests:**
+  - `tests/unit/help-content.test.tsx` checks that every page route has its own help and that the help states the
+    same limits as the code (password length, lockout, invitation expiry, back-off).
+  - `tests/e2e/help.spec.ts` covers the Help button on every page, focused hints, a member's view, forgotten password
+    and the invitation page.
+- **Follow-up:** consider a proper self-service password reset.
+
 ## Change request 2026-10-30 (4): email actions no longer time out; invitation email and page redesigned (✅ pushed)
 
 - **504 after a successful send:** fixed.

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import guide from "../../../../docs/USER-GUIDE.md";
-import { HelpTrigger } from "@/components/help";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/primitives";
 import { requirePageUser } from "@/lib/auth/session";
@@ -19,7 +18,6 @@ export default async function GuidePage() {
       <PageHeader
         title="User guide"
         description="What News Desk does, how it decides what matters, and how to use each page."
-        actions={<HelpTrigger />}
       />
       <div className="grid gap-6 lg:grid-cols-[14rem_1fr]">
         <nav aria-label="Guide contents" className="self-start text-sm lg:sticky lg:top-6">

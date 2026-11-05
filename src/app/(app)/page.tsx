@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AccessRequestsCard } from "@/components/access-requests";
 import { HealthBadge, sourceHealth } from "@/components/badges";
-import { HelpTrigger } from "@/components/help";
+import { HelpHint, HelpTrigger } from "@/components/help";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, StoryRow } from "@/components/story-row";
 import { Card, CardHeader } from "@/components/ui/primitives";
@@ -57,6 +57,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
       <PageHeader
         title="Overview"
         description={`${formatLongDate(now)} · Edmonton`}
+        help={false}
         actions={
           <>
             <HelpTrigger label="Help: about this dashboard" />
@@ -161,6 +162,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             <CardHeader
               title="High-priority alerts"
               description="P0 and P1 stories that are not yet covered or archived"
+              help={<HelpHint topic="priorities" label="What the priorities mean" />}
               action={
                 <Link href="/news?priority=high&status=open&sort=priority" className="flex items-center gap-1 text-sm text-cobalt-700 hover:underline">
                   All <ArrowRight className="size-3.5" />
@@ -240,7 +242,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             </div>
           </Card>
           <Card>
-            <CardHeader title="Source monitoring" />
+            <CardHeader title="Source monitoring" help={<HelpHint topic="source-health" label="Source health and checks" />} />
             <ul className="divide-y divide-line">
               {o.sources.map((s) => (
                 <li key={s.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { deleteStaffAction, inviteStaffAction, setStaffRoleAction, setStaffStatusAction } from "@/actions/admin";
 import { AccessRequestsCard } from "@/components/access-requests";
 import { ActionForm, ConfirmSubmit, SubmitButton } from "@/components/forms";
-import { HelpTrigger } from "@/components/help";
+import { HelpHint } from "@/components/help";
 import { PageHeader } from "@/components/page-header";
 import { Badge, Card, CardHeader, Field, Input, Select } from "@/components/ui/primitives";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from "@/lib/auth/permissions";
@@ -24,13 +24,13 @@ export default async function TeamPage() {
       <PageHeader
         title="Team management"
         description="Invite people, set their roles, and approve or decline access requests. Every change is audit-logged."
-        actions={<HelpTrigger />}
       />
       <div className="space-y-6">
         {requests.length ? <AccessRequestsCard rows={requests} title="Access requests" /> : null}
         <Card>
           <CardHeader
             title="Staff"
+            help={<HelpHint topic="staff-actions" label="Changing someone's access" />}
             description={`Invitation only: administrators add people. Only @${env().ALLOWED_EMAIL_DOMAIN} work emails can be invited. Administrators can promote anyone, including to Administrator, but can't change or delete their own account here.`}
           />
           <dl className="grid gap-x-6 gap-y-2 border-b border-line px-5 py-4 text-xs sm:grid-cols-3">
@@ -62,7 +62,10 @@ export default async function TeamPage() {
                   ))}
                 </Select>
               </Field>
-              <SubmitButton pendingText="Inviting…">Send invitation</SubmitButton>
+              <div className="flex items-center gap-1">
+                <SubmitButton pendingText="Inviting…">Send invitation</SubmitButton>
+                <HelpHint topic="inviting" label="Sending an invitation" />
+              </div>
             </div>
           </ActionForm>
           <div className="overflow-x-auto">
@@ -128,9 +131,10 @@ export default async function TeamPage() {
                           ) : null}
                           <form action={deleteStaffAction} aria-label={`Delete ${u.email}`}>
                             <input type="hidden" name="userId" value={u.id} />
+                            {/* Someone re-invited to reset a password already has history: deleting them is not "cancelling". */}
                             <ConfirmSubmit
-                              label={u.status === "invited" ? "Cancel invite" : "Delete"}
-                              confirmLabel={u.status === "invited" ? "Confirm cancel" : "Confirm delete"}
+                              label={u.status === "invited" && !u.lastLoginAt ? "Cancel invite" : "Delete"}
+                              confirmLabel={u.status === "invited" && !u.lastLoginAt ? "Confirm cancel" : "Confirm delete"}
                               pendingText="Deleting…"
                             />
                           </form>

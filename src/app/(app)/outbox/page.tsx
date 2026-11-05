@@ -103,13 +103,18 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
       </Card>
       {!mail.live ? (
         <p role="status" className="mb-4 rounded-lg border border-cobalt-100 bg-cobalt-50 px-4 py-3 text-sm text-cobalt-800">
-          <strong>Simulated delivery.</strong> {mail.reason} No real email leaves this system.
+          <strong>Simulated delivery.</strong> {mail.reason} No real email leaves this system.{" "}
+          <HelpHint topic="email-mode" label="Simulated and live email" className="size-5 text-cobalt-800" />
         </p>
       ) : null}
 
       <div className="mb-6">
         <Card>
-          <CardHeader title="Alert dry run" description="What the next alert check would do right now. Read-only." />
+          <CardHeader
+            title="Alert dry run"
+            description="What the next alert check would do right now. Read-only."
+            help={<HelpHint topic="alert-dry-run" label="Alert dry run" />}
+          />
           <div className="space-y-3 px-5 py-4 text-sm">
             <p className="text-muted">
               {ev.enabled ? "Alerts enabled" : "Alerts disabled"} · {ev.inWindow ? "inside" : "outside"} alert hours · {ev.sentLastHour} in the last
@@ -178,7 +183,11 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
                   <th className="px-5 py-2 font-medium">Created</th>
                   <th className="px-3 py-2 font-medium">Type</th>
                   <th className="px-3 py-2 font-medium">Subject</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2 font-medium">
+                    <span className="inline-flex items-center gap-0.5">
+                      Status <HelpHint topic="email-status" label="What the delivery statuses mean" className="size-5" />
+                    </span>
+                  </th>
                   <th className="px-5 py-2 font-medium">Attempts</th>
                 </tr>
               </thead>

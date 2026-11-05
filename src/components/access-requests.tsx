@@ -1,6 +1,7 @@
 import { UserPlus } from "lucide-react";
 import { approveAccessRequestAction, declineAccessRequestAction } from "@/actions/requests";
 import { ActionForm, SubmitButton } from "@/components/forms";
+import { HelpHint } from "@/components/help";
 import { Card, CardHeader, Select } from "@/components/ui/primitives";
 import { ROLE_LABELS } from "@/lib/auth/permissions";
 import { ROLES } from "@/lib/db/schema";
@@ -21,6 +22,7 @@ export function AccessRequestsCard({ rows, title = "Access requests" }: { rows: 
           </span>
         }
         description={pending.length ? `${pending.length} waiting for an administrator` : "No pending requests"}
+        help={<HelpHint topic="access-requests" label="Access requests" />}
       />
       <ul className="divide-y divide-line">
         {rows.map(({ r, reviewer, reviewerEmail }) => (

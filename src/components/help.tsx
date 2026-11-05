@@ -7,338 +7,10 @@ import * as React from "react";
 import { submitFeatureRequestAction } from "@/actions/requests";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { Button, Field, Input, Select, Textarea } from "@/components/ui/primitives";
+import { contextFor, HELP_TOPICS, type HelpTopic } from "@/components/help-content";
 import { cn } from "@/lib/utils";
 
-type Section = { title: string; body: React.ReactNode };
-
-const ABOUT: Section = {
-  title: "About CAEDM News Desk",
-  body: (
-    <p>
-      News Desk watches approved Catholic and Edmonton news sources for the Archdiocese&apos;s Communications team. It ranks stories by importance,
-      sends each person their own news brief at the time they choose, alerts on urgent stories, and tracks follow-ups so nothing is missed. Every
-      email goes to the signed-in person&apos;s own work address.
-    </p>
-  ),
-};
-
-/** Topics opened by the small help icons next to individual features. */
-const TOPICS = {
-  "personal-brief": {
-    title: "Your personal news brief",
-    body: (
-      <ul className="list-disc space-y-1 pl-5">
-        <li>A summary of new stories, emailed to you at the time and on the days you choose (Edmonton time).</li>
-        <li>
-          <strong>Catholic news only</strong> includes the Archdiocese, Catholic partners, Canadian Catholic and Vatican sources.{" "}
-          <strong>All monitored news</strong> adds government and other sources.
-        </li>
-        <li>Each brief covers the news since your previous one, so nothing is skipped or repeated. Weekday briefs on Monday cover the weekend.</li>
-        <li>If nothing new was published, no email is sent that day.</li>
-        <li>It also lists the follow-ups assigned to you.</li>
-        <li>It may arrive up to 15 minutes after the time you pick.</li>
-      </ul>
-    ),
-  },
-  "send-now": {
-    title: "Send me a brief now",
-    body: (
-      <p>
-        Builds your personal brief from the last 24 hours, using your <em>Catholic news only</em> or <em>All monitored news</em> choice, and emails it
-        to you right away. It doesn&apos;t affect your scheduled brief. You can send one per minute.
-      </p>
-    ),
-  },
-  "my-alerts": {
-    title: "Your high-priority alerts",
-    body: (
-      <ul className="list-disc space-y-1 pl-5">
-        <li>Separate emails for urgent stories, sent to your own work email only if you turn them on.</li>
-        <li>
-          <strong>P0 Critical and P1 High</strong>: every alert. <strong>P0 Critical only</strong>: just the most serious. <strong>Off</strong>: check
-          the dashboard instead.
-        </li>
-        <li>Alerts follow the shared alert hours and limits set by administrators. P0 may be allowed at any time.</li>
-      </ul>
-    ),
-  },
-  "alert-rules": {
-    title: "Rules for everyone (administrators)",
-    body: (
-      <ul className="list-disc space-y-1 pl-5">
-        <li>These rules apply to everyone; there is no shared mailbox. Each person chooses what they receive at their own address.</li>
-        <li>
-          <strong>Default brief time</strong> is used by people who don&apos;t pick their own. <strong>Lookback</strong> is the shortest period a
-          brief covers.
-        </li>
-        <li>
-          <strong>Alert hours</strong> and the hourly and daily <strong>limits</strong> stop alert floods. Stories held back stay on the dashboard
-          and appear in the next brief.
-        </li>
-      </ul>
-    ),
-  },
-  "email-status": {
-    title: "What the delivery statuses mean",
-    body: (
-      <ul className="list-disc space-y-1 pl-5">
-        <li>
-          <strong>Sent</strong>: delivered to the mail server.
-        </li>
-        <li>
-          <strong>Simulated</strong>: stored here only; live email is off, so nothing was sent.
-        </li>
-        <li>
-          <strong>Failed</strong>: the mail server couldn&apos;t be reached. It retries automatically after 1, 5, 15 and 60 minutes.
-        </li>
-        <li>
-          <strong>Sending</strong>: being handed to the mail server now, usually within a few seconds.
-        </li>
-        <li>
-          <strong>Unconfirmed</strong>: the mail server received the message but never confirmed it, so it may or may not have arrived. It is not
-          resent automatically, to avoid a duplicate. Check with the recipient; a manager can then choose <strong>Resend anyway</strong>.
-        </li>
-        <li>
-          <strong>Skipped</strong>: deliberately not sent, for example a personal brief on a day with nothing new.
-        </li>
-      </ul>
-    ),
-  },
-} satisfies Record<string, Section>;
-
-const PRIORITIES: Section = {
-  title: "What the priorities mean",
-  body: (
-    <ul className="list-disc space-y-1 pl-5">
-      <li>
-        <strong>P0 Critical</strong>: serious, time-sensitive developments directly involving the Archdiocese or a local Catholic institution. Alerts
-        are sent immediately.
-      </li>
-      <li>
-        <strong>P1 High</strong>: important local Catholic, education, healthcare or policy news that needs timely review. Alerts are sent during
-        alert hours.
-      </li>
-      <li>
-        <strong>P2 Standard</strong>: relevant community news, events and routine announcements, included in news briefs.
-      </li>
-      <li>
-        <strong>P3 Background</strong>: context, including routine international news.
-      </li>
-    </ul>
-  ),
-};
-
-const ALL_TOPICS = { ...TOPICS, priorities: PRIORITIES } satisfies Record<string, Section>;
-export type HelpTopic = keyof typeof ALL_TOPICS;
-
-const CONTEXT: Record<string, { heading: string; sections: Section[] }> = {
-  login: {
-    heading: "Signing in",
-    sections: [
-      ABOUT,
-      {
-        title: "How to sign in",
-        body: (
-          <ul className="list-disc space-y-1 pl-5">
-            <li>Use your @caedm.ca work email and the password you chose when you accepted your invitation.</li>
-            <li>
-              Access is by invitation only. If you don&apos;t have an account, use <strong>Request access</strong>; an administrator will review it.
-            </li>
-            <li>After 5 incorrect attempts the account is locked for 15 minutes.</li>
-          </ul>
-        ),
-      },
-    ],
-  },
-  "/": {
-    heading: "Overview",
-    sections: [
-      ABOUT,
-      {
-        title: "Reading this page",
-        body: (
-          <ul className="list-disc space-y-1 pl-5">
-            <li>
-              <strong>New stories</strong>: found in the last 24 hours (a source&apos;s first sync is stored without alerts).
-            </li>
-            <li>
-              <strong>High-priority open</strong>: P0/P1 stories not yet covered or archived.
-            </li>
-            <li>
-              <strong>Needs review</strong>: sensitive or unverified claims. Verify before any external use.
-            </li>
-            <li>
-              <strong>Sources healthy</strong>: monitored sources whose last check succeeded.
-            </li>
-          </ul>
-        ),
-      },
-      PRIORITIES,
-    ],
-  },
-  "/news": {
-    heading: "News Feed",
-    sections: [
-      {
-        title: "Working with stories",
-        body: (
-          <ul className="list-disc space-y-1 pl-5">
-            <li>Search and filter by source, priority, status and date. Dates use Edmonton time.</li>
-            <li>Workflow: New → Reviewing → Assigned → Covered or Archived.</li>
-            <li>
-              Open a story to see <em>why</em> it got its priority, change the priority (managers), assign a follow-up and add notes.
-            </li>
-            <li>Summaries are the publisher&apos;s own words, never generated. Always confirm on the original page.</li>
-            <li>
-              Use <strong>Submit a link</strong> for news from sources that aren&apos;t monitored; these are marked unverified.
-            </li>
-          </ul>
-        ),
-      },
-      PRIORITIES,
-    ],
-  },
-  "/follow-ups": {
-    heading: "Follow-ups",
-    sections: [
-      {
-        title: "Tracking follow-ups",
-        body: (
-          <ul className="list-disc space-y-1 pl-5">
-            <li>Assign stories from the story page; assignees get an email if they have that turned on in My account.</li>
-            <li>Overdue items are flagged and listed in news briefs.</li>
-            <li>Mark covered when Communications has acted; archive when no action is needed.</li>
-          </ul>
-        ),
-      },
-    ],
-  },
-  "/sources": {
-    heading: "Sources",
-    sections: [
-      {
-        title: "Source monitoring",
-        body: (
-          <ul className="list-disc space-y-1 pl-5">
-            <li>
-              Sources are checked every morning before the brief, and every few minutes while anyone is signed in. New stories appear with a
-              &ldquo;new stories&rdquo; banner. A failing source backs off automatically and the others keep working.
-            </li>
-            <li>Only publisher feeds or newsroom pages that robots.txt allows are used, and no full articles are copied.</li>
-            <li>
-              Administrators can add a source with <strong>Add source</strong>: enter the website, use <em>Find feed</em>, then <em>Test</em>. Only
-              sources with a working RSS/Atom feed can be monitored; ask the developer about organizations without one.
-            </li>
-          </ul>
-        ),
-      },
-    ],
-  },
-  "/settings": {
-    heading: "Settings",
-    sections: [
-      {
-        title: "What's here",
-        body: (
-          <p>
-            How often sources are refreshed, the priority keyword rules, feature requests and the audit log. Email choices are in{" "}
-            <strong>Notifications &amp; alerts</strong>; people and roles are in <strong>Team management</strong>.
-          </p>
-        ),
-      },
-    ],
-  },
-  "/team": {
-    heading: "Team management",
-    sections: [
-      {
-        title: "Adding people",
-        body: (
-          <p>
-            Enter the person&apos;s full name and @caedm.ca email, choose a role and send the invitation. They get a personal email with a one-time link,
-            valid for 72 hours, to create their password. Requests from the sign-in page appear here and on the Overview.
-          </p>
-        ),
-      },
-      {
-        title: "Roles",
-        body: (
-          <ul className="list-disc space-y-1 pl-5">
-            <li>
-              <strong>Administrator</strong>: everything, including staff, roles, sources and settings. Only administrators can add, promote or
-              delete people, and no one can change or delete their own account.
-            </li>
-            <li>
-              <strong>Manager</strong>: member rights plus priority changes, brief/alert tools and source checks.
-            </li>
-            <li>
-              <strong>Member</strong>: read and review stories, follow-ups, notes, submit links.
-            </li>
-          </ul>
-        ),
-      },
-    ],
-  },
-  "/outbox": {
-    heading: "Email outbox",
-    sections: [
-      {
-        title: "Emails",
-        body: (
-          <p>
-            Every brief, alert, invitation and request is listed here with its delivery status. Open a message to see exactly
-            what was sent.
-          </p>
-        ),
-      },
-      TOPICS["send-now"],
-      TOPICS["email-status"],
-    ],
-  },
-  "/account": {
-    heading: "My account",
-    sections: [
-      {
-        title: "Your account",
-        body: (
-          <p>
-            Your name, role and password. To choose which emails you receive, open <strong>Notifications &amp; alerts</strong>.
-          </p>
-        ),
-      },
-    ],
-  },
-  "/notifications": {
-    heading: "Notifications & alerts",
-    sections: [
-      {
-        title: "Where your emails go",
-        body: (
-          <p>
-            Every News Desk email goes to the work email you sign in with. There is no shared mailbox: each person chooses their own brief and
-            alerts here.
-          </p>
-        ),
-      },
-      TOPICS["personal-brief"],
-      TOPICS["my-alerts"],
-      TOPICS["send-now"],
-    ],
-  },
-  "/guide": {
-    heading: "User guide",
-    sections: [ABOUT, TOPICS["personal-brief"], PRIORITIES],
-  },
-};
-
-function contextFor(pathname: string, override?: string) {
-  if (override) return CONTEXT[override] ?? CONTEXT["/"];
-  const key = Object.keys(CONTEXT)
-    .filter((k) => k.startsWith("/"))
-    .sort((a, b) => b.length - a.length)
-    .find((k) => (k === "/" ? pathname === "/" : pathname === k || pathname.startsWith(`${k}/`)));
-  return CONTEXT[key ?? "/"];
-}
+export type { HelpTopic };
 
 type HelpView = "help" | "feature";
 const HelpContext = React.createContext<{ open: (v: HelpView, topic?: HelpTopic) => void; signedIn: boolean } | null>(null);
@@ -360,7 +32,7 @@ export function HelpProvider({
   const [view, setView] = React.useState<HelpView>("help");
   const [topic, setTopic] = React.useState<HelpTopic | null>(null);
   const ctx = contextFor(pathname, context);
-  const focused = topic ? ALL_TOPICS[topic] : null;
+  const focused = topic ? HELP_TOPICS[topic] : null;
   // The topic a help icon asked about comes first; the page's other help follows it.
   const sections = focused ? [focused, ...ctx.sections.filter((s) => s.title !== focused.title)] : ctx.sections;
   const value = React.useMemo(
@@ -524,10 +196,22 @@ export function HelpTrigger({
   );
 }
 
-/** Small "?" beside a feature: opens Help with that feature's explanation first. */
-export function HelpHint({ topic, label, className }: { topic: HelpTopic; label: string; className?: string }) {
+/** Small "?" beside a feature: opens Help with that feature's explanation first. With children, renders as a text link instead. */
+export function HelpHint({ topic, label, className, children }: { topic: HelpTopic; label: string; className?: string; children?: React.ReactNode }) {
   const help = React.useContext(HelpContext);
   if (!help) return null;
+  if (children) {
+    return (
+      <button
+        type="button"
+        onClick={() => help.open("help", topic)}
+        aria-haspopup="dialog"
+        className={cn("inline-flex items-center gap-1 text-sm text-cobalt-700 hover:underline", className)}
+      >
+        <CircleHelp className="size-3.5" aria-hidden /> {children}
+      </button>
+    );
+  }
   return (
     <button
       type="button"

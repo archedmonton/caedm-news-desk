@@ -3,6 +3,7 @@ import Link from "next/link";
 import { reclassifyAction, savePriorityRulesAction, saveSettingsAction } from "@/actions/admin";
 import { setFeatureRequestStatusAction } from "@/actions/requests";
 import { ActionForm, SubmitButton } from "@/components/forms";
+import { HelpHint } from "@/components/help";
 import { PageHeader } from "@/components/page-header";
 import { Badge, Card, CardHeader, Checkbox, Field, Input, Select, Textarea } from "@/components/ui/primitives";
 import { productionAccess } from "@/lib/auth/access";
@@ -36,7 +37,11 @@ export default async function SettingsPage() {
       <PageHeader title="Settings" description={admin ? "Changes are audit-logged." : "Only administrators can change settings."} />
       <div className="space-y-6">
         <Card>
-          <CardHeader title="Email delivery" description="Set by IT through environment variables. Not editable here." />
+          <CardHeader
+            title="Email delivery"
+            description="Set by IT through environment variables. Not editable here."
+            help={<HelpHint topic="email-mode" label="Simulated and live email" />}
+          />
           <div className="grid gap-4 px-5 py-4 text-sm sm:grid-cols-3">
             <div>
               <div className="text-xs text-subtle">Mode</div>
@@ -67,7 +72,7 @@ export default async function SettingsPage() {
 
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>
-            <CardHeader title="Monitoring" />
+            <CardHeader title="Monitoring" help={<HelpHint topic="refresh" label="How sources are refreshed" />} />
             <ActionForm action={saveSettingsAction} className="space-y-4 px-5 py-4">
               <input type="hidden" name="section" value="monitoring" />
               <Field
@@ -114,6 +119,7 @@ export default async function SettingsPage() {
         <Card>
           <CardHeader
             title="Priority rules"
+            help={<HelpHint topic="priority-rules" label="Editing the priority rules" />}
             description="A deterministic, explainable classifier. Terms are case-insensitive; one per line. A trailing * matches word endings, and a leading ^ matches the start of the headline."
           />
           <ActionForm action={savePriorityRulesAction} className="space-y-4 px-5 py-4">

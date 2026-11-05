@@ -5,7 +5,7 @@ import { saveSettingsAction } from "@/actions/admin";
 import { sendBriefNowAction } from "@/actions/notifications";
 import { updateNotificationsAction } from "@/actions/requests";
 import { ActionForm, SubmitButton } from "@/components/forms";
-import { HelpHint, HelpTrigger } from "@/components/help";
+import { HelpHint } from "@/components/help";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, Checkbox, Field, Input, Select } from "@/components/ui/primitives";
 import { can } from "@/lib/auth/permissions";
@@ -44,7 +44,6 @@ export default async function NotificationsPage() {
       <PageHeader
         title="Notifications & alerts"
         description="Choose which News Desk emails you receive. Everything is sent to your own work email."
-        actions={<HelpTrigger />}
       />
 
       <Card className="mb-6">

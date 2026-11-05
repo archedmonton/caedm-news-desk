@@ -29,7 +29,7 @@ export type CheckResult = {
   warnings: string[];
 };
 
-const MAX_BACKOFF_MINUTES = 360;
+export const MAX_BACKOFF_MINUTES = 360;
 
 export function profileOf(source: Source): SourceProfile {
   return {
